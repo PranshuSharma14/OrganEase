@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OrganEase - Living Organ Donation Consent Form</title>
+    <style>
+        body {
+            font-family: 'Times New Roman', serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 40px;
+            line-height: 1.6;
+            color: #000;
+            background: #fff;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 20px;
+        }
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 5px;
+        }
+        .tagline {
+            font-size: 14px;
+            color: #666;
+            font-style: italic;
+        }
+        h1 {
+            color: #1e40af;
+            font-size: 24px;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        h2 {
+            color: #1e40af;
+            font-size: 18px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .form-number {
+            text-align: right;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f9fafb;
+            border-left: 4px solid #2563eb;
+        }
+        .field {
+            margin: 15px 0;
+            display: flex;
+            align-items: baseline;
+        }
+        .field-label {
+            font-weight: bold;
+            min-width: 200px;
+            color: #374151;
+        }
+        .field-value {
+            flex: 1;
+            border-bottom: 1px solid #000;
+            min-height: 20px;
+        }
+        .checkbox-group {
+            margin: 10px 0;
+        }
+        .checkbox-item {
+            margin: 8px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+        .checkbox-item:before {
+            content: "☐";
+            position: absolute;
+            left: 0;
+            font-size: 18px;
+        }
+        .declaration {
+            background: #fef3c7;
+            padding: 20px;
+            margin: 20px 0;
+            border: 2px solid #f59e0b;
+            border-radius: 5px;
+        }
+        .signature-section {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+        .signature-box {
+            border: 2px solid #000;
+            padding: 15px;
+            min-height: 100px;
+        }
+        .signature-label {
+            font-weight: bold;
+            margin-bottom: 40px;
+            display: block;
+        }
+        .witness-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #000;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ccc;
+            font-size: 11px;
+            color: #666;
+            text-align: center;
+        }
+        ol {
+            padding-left: 20px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .important {
+            background: #fee2e2;
+            padding: 15px;
+            border-left: 4px solid #dc2626;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">🫀 OrganEase</div>
+        <div class="tagline">Connecting Lives Through Living Organ Donation</div>
+    </div>
+
+    <div class="form-number">
+        Form No: OE-CONSENT-2025 | Version 1.0
+    </div>
+
+    <h1>LIVING ORGAN DONATION CONSENT FORM</h1>
+    <p style="text-align: center; font-size: 12px; color: #666; margin-bottom: 30px;">
+        (As per Transplantation of Human Organs and Tissues Act, 1994)
+    </p>
+
+    <div class="section">
+        <h2>SECTION A: DONOR INFORMATION</h2>
+        
+        <div class="field">
+            <span class="field-label">Full Name:</span>
+            <span class="field-value"></span>
+        </div>
+        
+        <div class="field">
+            <span class="field-label">Date of Birth:</span>
+            <span class="field-value"></span>
+        </div>
+        
+        <div class="field">
+            <span class="field-label">Age:</span>
+            <span class="field-value"></span>
+        </div>
+        
+        <div class="field">
+            <span class="field-label">Gender:</span>
+            <span class="field-value"></span>
+        </div>
+        
+        <div class="field">
+            <span class="field-label">Blood Group:</span>
+            <span class="field-value"></span>
+        </div>
+        
+        <div class="field">
+            <span class="field-label">Government ID (Aadhaar/Passport):</span>
+            <span class="field-value"></span>
+        </div>
+        
+        <div class="field">
+            <span class="field-label">Residential Address:</span>
+            <span class="field-value"></span>
+        </div>
+        
+        <div class="field">
+            <span class="field-label">Contact Number:</span>
+            <span class="field-value"></span>
+        </div>
+        
+        <div class="field">
+            <span class="field-label">Email Address:</span>
+            <span class="field-value"></span>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>SECTION B: ORGAN(S) FOR DONATION</h2>
+        <p style="font-size: 13px; margin-bottom: 10px;">I hereby consent to donate the following organ(s):</p>
+        
+        <div class="checkbox-group">
+            <div class="checkbox-item">Kidney (One)</div>
+            <div class="checkbox-item">Partial Liver</div>
+            <div class="checkbox-item">Bone Marrow</div>
+            <div class="checkbox-item">Blood (Platelets / RBC / Plasma)</div>
+            <div class="checkbox-item">Partial Lung</div>
+            <div class="checkbox-item">Partial Pancreas</div>
+            <div class="checkbox-item">Skin Graft</div>
+            <div class="checkbox-item">Blood Vessels</div>
+            <div class="checkbox-item">Partial Intestine</div>
+            <div class="checkbox-item">Uterus</div>
+        </div>
+    </div>
+
+    <div class="declaration">
+        <h2 style="border: none; color: #92400e; margin-top: 0;">VOLUNTARY DECLARATION</h2>
+        <p style="font-weight: bold; margin-bottom: 15px;">I, the undersigned, hereby declare and confirm the following:</p>
+        
+        <ol>
+            <li>I am donating the above-mentioned organ(s) <strong>VOLUNTARILY</strong> without any coercion, inducement, or financial consideration.</li>
+            <li>I have been fully informed about the nature of the donation, surgical procedure, potential risks, and possible complications.</li>
+            <li>I understand that this donation is being made to save or improve the life of a recipient in genuine medical need.</li>
+            <li>I have undergone complete medical evaluation and have been certified as medically fit for organ donation by a qualified medical professional.</li>
+            <li>I am NOT receiving any monetary compensation, gifts, or other financial benefits in exchange for this donation.</li>
+            <li>I understand that organ donation is governed by the Transplantation of Human Organs and Tissues Act, 1994, and I comply with all legal requirements.</li>
+            <li>I confirm that I am above 18 years of age and of sound mind to make this decision.</li>
+            <li>I have been given sufficient time to consider this decision and have had all my questions answered satisfactorily.</li>
+            <li>I authorize OrganEase platform and associated hospitals to use my information for matching with compatible recipients.</li>
+            <li>I understand that I have the right to withdraw my consent at any time before the surgical procedure without any penalty.</li>
+        </ol>
+    </div>
+
+    <div class="important">
+        <strong>⚠️ IMPORTANT:</strong> This consent does not obligate you to proceed with donation. You may withdraw consent at any time before surgery. All medical decisions will be made in consultation with qualified healthcare professionals.
+    </div>
+
+    <div class="section">
+        <h2>SECTION C: MEDICAL FITNESS CONFIRMATION</h2>
+        <p style="font-size: 13px; margin-bottom: 15px;">
+            I confirm that I have attached the following medical documents:
+        </p>
+        <div class="checkbox-group">
+            <div class="checkbox-item">Medical Fitness Certificate from registered doctor/hospital</div>
+            <div class="checkbox-item">Blood Group & Compatibility Reports</div>
+            <div class="checkbox-item">Recent Health Check-up Reports</div>
+            <div class="checkbox-item">Government-issued Photo ID (Aadhaar/Passport)</div>
+        </div>
+    </div>
+
+    <div class="signature-section">
+        <div class="signature-box">
+            <span class="signature-label">DONOR'S SIGNATURE:</span>
+            <div style="margin-top: 20px;">
+                <div class="field">
+                    <span class="field-label">Date:</span>
+                    <span class="field-value"></span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Place:</span>
+                    <span class="field-value"></span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="signature-box">
+            <span class="signature-label">THUMB IMPRESSION (Optional):</span>
+            <div style="margin-top: 20px; text-align: center; color: #999;">
+                (Left Thumb)
+            </div>
+        </div>
+    </div>
+
+    <div class="witness-section">
+        <h2>SECTION D: WITNESS VERIFICATION (Optional but Recommended)</h2>
+        
+        <div style="margin-top: 20px;">
+            <h3 style="font-size: 14px; margin-bottom: 15px;">Witness 1:</h3>
+            <div class="field">
+                <span class="field-label">Name:</span>
+                <span class="field-value"></span>
+            </div>
+            <div class="field">
+                <span class="field-label">Relationship with Donor:</span>
+                <span class="field-value"></span>
+            </div>
+            <div class="field">
+                <span class="field-label">Contact Number:</span>
+                <span class="field-value"></span>
+            </div>
+            <div class="field">
+                <span class="field-label">Signature:</span>
+                <span class="field-value"></span>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px;">
+            <h3 style="font-size: 14px; margin-bottom: 15px;">Witness 2:</h3>
+            <div class="field">
+                <span class="field-label">Name:</span>
+                <span class="field-value"></span>
+            </div>
+            <div class="field">
+                <span class="field-label">Relationship with Donor:</span>
+                <span class="field-value"></span>
+            </div>
+            <div class="field">
+                <span class="field-label">Contact Number:</span>
+                <span class="field-value"></span>
+            </div>
+            <div class="field">
+                <span class="field-label">Signature:</span>
+                <span class="field-value"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p><strong>OrganEase - Living Organ Donation Platform</strong></p>
+        <p>Email: support@organease.co.in | Helpline: +91 1800-XXX-XXXX</p>
+        <p>This form is prepared in accordance with the Transplantation of Human Organs and Tissues Act, 1994</p>
+        <p style="margin-top: 15px; font-size: 10px;">
+            <strong>FOR OFFICE USE ONLY:</strong><br>
+            Registration ID: _____________ | Verification Date: _____________ | Verified By: _____________
+        </p>
+    </div>
+
+    <div style="page-break-after: always;"></div>
+
+    <div style="margin-top: 40px; padding: 30px; background: #f0f9ff; border: 2px solid #2563eb; border-radius: 10px;">
+        <h2 style="color: #1e40af; text-align: center;">📋 INSTRUCTIONS FOR DONOR</h2>
+        
+        <h3 style="color: #1e40af; font-size: 16px; margin-top: 20px;">How to Complete This Form:</h3>
+        <ol style="line-height: 1.8;">
+            <li><strong>Print this form:</strong> Download and print this consent form on A4 size paper.</li>
+            <li><strong>Fill in your details:</strong> Use a BLACK or BLUE pen to fill all fields in SECTION A (Donor Information).</li>
+            <li><strong>Select organs:</strong> Check (✓) the boxes for organs you consent to donate in SECTION B.</li>
+            <li><strong>Read the declaration:</strong> Carefully read all 10 points in the VOLUNTARY DECLARATION section.</li>
+            <li><strong>Sign the form:</strong> Sign in the donor signature box in SECTION C with today's date and place.</li>
+            <li><strong>Witness signatures (optional):</strong> Have two witnesses sign in SECTION D (family members or friends).</li>
+            <li><strong>Scan or photograph:</strong> Make a clear scan or high-quality photo of the completed, signed form.</li>
+            <li><strong>Upload:</strong> Upload the scanned/photographed consent form on the OrganEase donor registration page.</li>
+        </ol>
+
+        <h3 style="color: #1e40af; font-size: 16px; margin-top: 25px;">Important Points to Remember:</h3>
+        <ul style="line-height: 1.8;">
+            <li>This consent is <strong>revocable</strong> - you can withdraw at any time before surgery.</li>
+            <li>Do NOT sign a blank form. Fill all mandatory fields before signing.</li>
+            <li>Keep a photocopy for your own records before uploading.</li>
+            <li>Ensure your signature is clear and matches your ID proof.</li>
+            <li>If you have any questions, contact OrganEase support before signing.</li>
+        </ul>
+
+        <div style="background: #dcfce7; padding: 15px; margin-top: 20px; border-left: 4px solid #16a34a; border-radius: 5px;">
+            <p style="margin: 0; font-weight: bold; color: #166534;">✓ After Upload:</p>
+            <p style="margin: 5px 0 0 0; color: #166534;">Your documents will be verified by hospital authorities within 2-3 business days. You'll receive email and dashboard notifications about your verification status.</p>
+        </div>
+    </div>
+</body>
+</html>
