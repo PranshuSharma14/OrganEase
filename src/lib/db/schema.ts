@@ -303,7 +303,7 @@ export const auditLogs = pgTable("audit_logs", {
 
 export const notifications = pgTable("notifications", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
   
   title: text("title").notNull(),
   message: text("message").notNull(),

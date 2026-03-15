@@ -322,7 +322,7 @@ export default function DonorDashboard() {
 
   if (!profile?.id) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-linear-to-br from-blue-50 via-white to-purple-50">
         <Card className="max-w-md shadow-xl">
           <CardHeader className="text-center">
             <Heart className="h-16 w-16 mx-auto mb-4 text-blue-600 fill-blue-600" />
@@ -342,7 +342,7 @@ export default function DonorDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50">
       {/* Header */}
       <div className="bg-white border-b shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">

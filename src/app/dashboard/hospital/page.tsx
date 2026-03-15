@@ -493,7 +493,7 @@ export default function HospitalDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-indigo-50">
       {/* Header */}
       <div className="bg-white border-b shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">
@@ -554,7 +554,7 @@ export default function HospitalDashboard() {
         {/* Hospital Code Quick Reference */}
         {hospitalProfile?.hospitalCode && (
           <div className="mb-6 p-3 rounded-lg bg-blue-50 border border-blue-200 flex items-center gap-3">
-            <Shield className="h-5 w-5 text-blue-500 flex-shrink-0" />
+            <Shield className="h-5 w-5 text-blue-500 shrink-0" />
             <span className="text-sm text-blue-700">Your hospital code:</span>
             <span className="font-mono font-bold text-blue-900 text-base">{hospitalProfile.hospitalCode}</span>
             <span className="text-xs text-blue-500">— share this with recipients during signup</span>
@@ -1116,14 +1116,17 @@ export default function HospitalDashboard() {
                 {hospitalProfile ? (
                   <div className="space-y-6">
                     {/* Hospital Code Banner */}
+                    {hospitalProfile.hospitalCode && (
+                      <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-4">
                         <div>
                           <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide mb-1">Your Hospital Code</p>
                           <p className="text-2xl font-mono font-bold text-blue-800">{hospitalProfile.hospitalCode}</p>
                           <p className="text-xs text-blue-600 mt-1">Share this code with recipients during their signup so they are linked to your hospital</p>
                         </div>
-                        <Shield className="h-10 w-10 text-blue-400 flex-shrink-0" />
+                        <Shield className="h-10 w-10 text-blue-400 shrink-0" />
                       </div>
                     )}
+                    {/* Hospital Details Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <div className="space-y-3 text-sm">
@@ -1471,7 +1474,7 @@ export default function HospitalDashboard() {
                   <Label htmlFor="notes" className="mb-2 block">Hospital Notes (Optional)</Label>
                   <textarea
                     id="notes"
-                    className="w-full min-h-[100px] p-3 border rounded-lg"
+                    className="w-full min-h-25 p-3 border rounded-lg"
                     placeholder="Add any notes about this match..."
                     value={approvalNotes}
                     onChange={(e) => setApprovalNotes(e.target.value)}

@@ -20,7 +20,22 @@ export default function RecipientOnboarding() {
   const [loading, setLoading] = useState(false);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    fullName: string;
+    email: string;
+    dateOfBirth: string;
+    phoneNumber: string;
+    city: string;
+    state: string;
+    bloodGroup: string;
+    hospitalCode: string;
+    organNeeded: string;
+    urgencyLevel: string;
+    medicalReports: string;
+    doctorReferral: string;
+    insuranceCard: string;
+    governmentId: string;
+  }>({
     // Step 1: Personal Information
     fullName: "",
     email: "",
@@ -29,20 +44,17 @@ export default function RecipientOnboarding() {
     city: "",
     state: "",
     bloodGroup: "",
-<<<<<<< HEAD
-=======
     hospitalCode: "",
->>>>>>> suryansh
     
     // Step 2: Medical Information
     organNeeded: "",
     urgencyLevel: "",
     
     // Step 3: Documents (store as URLs)
-    medicalReports: "" as string,
-    doctorReferral: "" as string,
-    insuranceCard: "" as string,
-    governmentId: "" as string,
+    medicalReports: "",
+    doctorReferral: "",
+    insuranceCard: "",
+    governmentId: "",
   });
 
   const [hospitalInfo, setHospitalInfo] = useState<{ hospitalName: string; city: string; state: string } | null>(null);
@@ -235,7 +247,7 @@ export default function RecipientOnboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50 py-12 px-4">
+    <div className="min-h-screen bg-linear-to-br from-red-50 via-white to-orange-50 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Progress Steps */}
         <div className="mb-8">
