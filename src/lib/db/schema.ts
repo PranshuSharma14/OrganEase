@@ -153,6 +153,9 @@ export const recipientProfiles = pgTable("recipient_profiles", {
   requestStatus: requestStatusEnum("request_status").default("pending"),
   documentsVerified: boolean("documents_verified").default(false),
   
+  // Hospital Assignment — set at signup via hospitalCode
+  registeredHospitalId: uuid("registered_hospital_id").references(() => hospitalProfiles.id),
+  
   // Verification
   verifiedByHospitalId: uuid("verified_by_hospital_id").references(() => hospitalProfiles.id),
   verifiedAt: timestamp("verified_at"),
@@ -193,6 +196,9 @@ export const hospitalProfiles = pgTable("hospital_profiles", {
   numberOfTransplantSurgeons: integer("number_of_transplant_surgeons"),
   transplantCapacity: integer("transplant_capacity"),
   specializations: text("specializations").array(),
+  
+  // Unique code shared with recipients during their signup
+  hospitalCode: text("hospital_code").unique(),
   
   // Verification
   verified: boolean("verified").default(false),
@@ -347,6 +353,10 @@ export const recipientProfilesRelations = relations(recipientProfiles, ({ one, m
     references: [users.id],
   }),
   matches: many(matches),
+  registeredHospital: one(hospitalProfiles, {
+    fields: [recipientProfiles.registeredHospitalId],
+    references: [hospitalProfiles.id],
+  }),
   verifiedBy: one(hospitalProfiles, {
     fields: [recipientProfiles.verifiedByHospitalId],
     references: [hospitalProfiles.id],

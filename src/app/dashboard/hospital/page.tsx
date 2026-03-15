@@ -551,6 +551,16 @@ export default function HospitalDashboard() {
           </div>
         )}
 
+        {/* Hospital Code Quick Reference */}
+        {hospitalProfile?.hospitalCode && (
+          <div className="mb-6 p-3 rounded-lg bg-blue-50 border border-blue-200 flex items-center gap-3">
+            <Shield className="h-5 w-5 text-blue-500 flex-shrink-0" />
+            <span className="text-sm text-blue-700">Your hospital code:</span>
+            <span className="font-mono font-bold text-blue-900 text-base">{hospitalProfile.hospitalCode}</span>
+            <span className="text-xs text-blue-500">— share this with recipients during signup</span>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card className="border-l-4 border-l-green-500">
@@ -1105,9 +1115,17 @@ export default function HospitalDashboard() {
               <CardContent>
                 {hospitalProfile ? (
                   <div className="space-y-6">
+                    {/* Hospital Code Banner */}
+                        <div>
+                          <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide mb-1">Your Hospital Code</p>
+                          <p className="text-2xl font-mono font-bold text-blue-800">{hospitalProfile.hospitalCode}</p>
+                          <p className="text-xs text-blue-600 mt-1">Share this code with recipients during their signup so they are linked to your hospital</p>
+                        </div>
+                        <Shield className="h-10 w-10 text-blue-400 flex-shrink-0" />
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <h3 className="font-semibold mb-4">Hospital Information</h3>
                         <div className="space-y-3 text-sm">
                           <div>
                             <p className="text-gray-600 text-xs mb-1">Hospital Name</p>

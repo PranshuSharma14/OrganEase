@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { donorProfiles, recipientProfiles, matches, hospitalProfiles } from "@/lib/db/schema";
-import { count, eq } from "drizzle-orm";
+import { count, eq, and } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,8 +16,6 @@ export async function GET(request: NextRequest) {
         completedProcedures: 0
       });
     }
-    
-    // Return stats for everyone (they'll just see zeros if not hospital)
 
     // Get hospital profile
     const hospitalProfile = await db.query.hospitalProfiles.findFirst({
@@ -28,7 +26,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Hospital profile not found" }, { status: 404 });
     }
 
-    // Get real statistics
+    const hospitalId = hospitalProfile.id;
+
+    // Get statistics scoped to this hospital
     const [
       totalVerifiedDonors,
       totalVerifiedRecipients,
@@ -37,12 +37,12 @@ export async function GET(request: NextRequest) {
       activeMatchesCount,
       completedMatchesCount,
     ] = await Promise.all([
-      db.select({ count: count() }).from(donorProfiles).where(eq(donorProfiles.documentsVerified, true)),
-      db.select({ count: count() }).from(recipientProfiles).where(eq(recipientProfiles.documentsVerified, true)),
+      db.select({ count: count() }).from(donorProfiles).where(and(eq(donorProfiles.documentsVerified, true), eq(donorProfiles.verifiedByHospitalId, hospitalId))),
+      db.select({ count: count() }).from(recipientProfiles).where(and(eq(recipientProfiles.documentsVerified, true), eq(recipientProfiles.verifiedByHospitalId, hospitalId))),
       db.select({ count: count() }).from(donorProfiles).where(eq(donorProfiles.documentsVerified, false)),
-      db.select({ count: count() }).from(recipientProfiles).where(eq(recipientProfiles.documentsVerified, false)),
-      db.select({ count: count() }).from(matches).where(eq(matches.status, "matched")),
-      db.select({ count: count() }).from(matches).where(eq(matches.status, "completed")),
+      db.select({ count: count() }).from(recipientProfiles).where(and(eq(recipientProfiles.documentsVerified, false), eq(recipientProfiles.registeredHospitalId, hospitalId))),
+      db.select({ count: count() }).from(matches).where(and(eq(matches.status, "matched"), eq(matches.hospitalId, hospitalId))),
+      db.select({ count: count() }).from(matches).where(and(eq(matches.status, "completed"), eq(matches.hospitalId, hospitalId))),
     ]);
 
     const totalVerified = (totalVerifiedDonors[0]?.count || 0) + (totalVerifiedRecipients[0]?.count || 0);

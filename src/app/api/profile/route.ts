@@ -179,6 +179,19 @@ export async function POST(req: NextRequest) {
         columns: { id: true, userId: true },
       });
 
+      // Resolve hospitalCode → registeredHospitalId
+      let registeredHospitalId: string | null = null;
+      if (data.hospitalCode) {
+        const hospital = await db.query.hospitalProfiles.findFirst({
+          where: eq(hospitalProfiles.hospitalCode, data.hospitalCode.toUpperCase().trim()),
+          columns: { id: true },
+        });
+        if (!hospital) {
+          return NextResponse.json({ error: "Invalid hospital code. Please check and try again." }, { status: 400 });
+        }
+        registeredHospitalId = hospital.id;
+      }
+
       const recipientData = {
         patientName: data.fullName,
         age: parseInt(data.dateOfBirth ? new Date().getFullYear() - new Date(data.dateOfBirth).getFullYear() : data.age || "0"),
@@ -191,6 +204,7 @@ export async function POST(req: NextRequest) {
         insuranceCardUrl: data.insuranceCard,
         governmentIdUrl: data.governmentId,
         priority: data.urgencyLevel === "high" || data.urgencyLevel === "emergency" ? data.urgencyLevel : "normal",
+        ...(registeredHospitalId ? { registeredHospitalId } : {}),
       };
 
       if (existingRecipient) {
@@ -278,9 +292,29 @@ export async function POST(req: NextRequest) {
         }
         return NextResponse.json(hospital);
       } else {
+        // Generate a unique hospitalCode for new hospitals (e.g. HOSP-AB1234)
+        const generateCode = () => {
+          const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+          let code = "HOSP-";
+          for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+          return code;
+        };
+        // Ensure uniqueness
+        let hospitalCode = generateCode();
+        let attempts = 0;
+        while (attempts < 10) {
+          const existing = await db.query.hospitalProfiles.findFirst({
+            where: eq(hospitalProfiles.hospitalCode, hospitalCode),
+            columns: { id: true },
+          });
+          if (!existing) break;
+          hospitalCode = generateCode();
+          attempts++;
+        }
+
         // Insert new profile
         const [hospital] = await db.insert(hospitalProfiles)
-          .values({ userId: effectiveUserId, ...hospitalData })
+          .values({ userId: effectiveUserId, ...hospitalData, hospitalCode })
           .returning();
 
         try {

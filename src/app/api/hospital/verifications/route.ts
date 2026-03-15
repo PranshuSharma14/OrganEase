@@ -3,12 +3,35 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { donorProfiles, recipientProfiles, users, hospitalProfiles } from "@/lib/db/schema";
 import { createNotification } from "@/lib/notifications";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { findMatches, createMatch } from "@/lib/matching-engine";
 
-// GET: Fetch pending verifications
+// GET: Fetch pending verifications OR validate a hospital code
+// - /api/hospital/verifications               → pending verifications list
+// - /api/hospital/verifications?validateCode=HOSP-XXXX → validate a hospital code
 export async function GET(request: NextRequest) {
   try {
+    // --- Hospital code validation (no auth required) ---
+    const { searchParams } = new URL(request.url);
+    const codeToValidate = searchParams.get("validateCode");
+    if (codeToValidate) {
+      const code = codeToValidate.toUpperCase().trim();
+      const hospital = await db.query.hospitalProfiles.findFirst({
+        where: eq(hospitalProfiles.hospitalCode, code),
+        columns: { id: true, hospitalName: true, city: true, state: true },
+      });
+      if (!hospital) {
+        return NextResponse.json({ valid: false, error: "Invalid hospital code" });
+      }
+      return NextResponse.json({
+        valid: true,
+        hospitalId: hospital.id,
+        hospitalName: hospital.hospitalName,
+        city: hospital.city,
+        state: hospital.state,
+      });
+    }
+
     const session = await auth();
     
     if (!session?.user) {
@@ -46,7 +69,7 @@ export async function GET(request: NextRequest) {
     .leftJoin(users, eq(donorProfiles.userId, users.id))
     .where(eq(donorProfiles.documentsVerified, false));
 
-    // Get unverified recipient profiles with user details
+    // Get unverified recipient profiles linked to THIS hospital only
     const pendingRecipients = await db.select({
       id: recipientProfiles.id,
       userId: recipientProfiles.userId,
@@ -68,7 +91,10 @@ export async function GET(request: NextRequest) {
     })
     .from(recipientProfiles)
     .leftJoin(users, eq(recipientProfiles.userId, users.id))
-    .where(eq(recipientProfiles.documentsVerified, false));
+    .where(and(
+      eq(recipientProfiles.documentsVerified, false),
+      eq(recipientProfiles.registeredHospitalId, hospitalProfile.id)
+    ));
 
     const pending = [
       ...pendingDonors.map(d => ({ ...d, type: "donor", fullName: d.fullName })),
@@ -115,6 +141,17 @@ export async function POST(request: NextRequest) {
         { error: "Profile ID, type, and action are required" },
         { status: 400 }
       );
+    }
+
+    // Security: ensure hospital can only act on recipients registered with them
+    if (profileType === "recipient") {
+      const recipient = await db.query.recipientProfiles.findFirst({
+        where: eq(recipientProfiles.id, profileId),
+        columns: { registeredHospitalId: true },
+      });
+      if (!recipient || recipient.registeredHospitalId !== hospitalProfile.id) {
+        return NextResponse.json({ error: "Access denied: recipient is not registered with your hospital" }, { status: 403 });
+      }
     }
 
     if (action === "approve") {

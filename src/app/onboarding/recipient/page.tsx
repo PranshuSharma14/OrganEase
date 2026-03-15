@@ -29,6 +29,10 @@ export default function RecipientOnboarding() {
     city: "",
     state: "",
     bloodGroup: "",
+<<<<<<< HEAD
+=======
+    hospitalCode: "",
+>>>>>>> suryansh
     
     // Step 2: Medical Information
     organNeeded: "",
@@ -40,6 +44,9 @@ export default function RecipientOnboarding() {
     insuranceCard: "" as string,
     governmentId: "" as string,
   });
+
+  const [hospitalInfo, setHospitalInfo] = useState<{ hospitalName: string; city: string; state: string } | null>(null);
+  const [validatingCode, setValidatingCode] = useState(false);
 
   const updateFormData = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -79,9 +86,28 @@ export default function RecipientOnboarding() {
     }
   };
 
+  const validateHospitalCode = async (code: string) => {
+    if (!code) return;
+    setValidatingCode(true);
+    setHospitalInfo(null);
+    try {
+      const res = await fetch(`/api/hospital/verifications?validateCode=${encodeURIComponent(code.toUpperCase().trim())}`);
+      const data = await res.json();
+      if (data.valid) {
+        setHospitalInfo({ hospitalName: data.hospitalName, city: data.city, state: data.state });
+      } else {
+        setHospitalInfo(null);
+      }
+    } catch {
+      setHospitalInfo(null);
+    } finally {
+      setValidatingCode(false);
+    }
+  };
+
   const validateStep = () => {
     if (step === 1) {
-      const required = ["fullName", "email", "dateOfBirth", "phoneNumber", "city", "state", "bloodGroup"];
+      const required = ["fullName", "email", "dateOfBirth", "phoneNumber", "city", "state", "bloodGroup", "hospitalCode"];
       
       // Check required fields
       for (const field of required) {
@@ -89,6 +115,12 @@ export default function RecipientOnboarding() {
           toast.error(`Please fill in ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
           return false;
         }
+      }
+
+      // Validate hospital code
+      if (!hospitalInfo) {
+        toast.error("Please enter a valid hospital code and wait for it to be verified");
+        return false;
       }
 
       // Validate email format
@@ -314,6 +346,37 @@ export default function RecipientOnboarding() {
                     placeholder="Maharashtra"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="hospitalCode">Hospital Code *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="hospitalCode"
+                    value={formData.hospitalCode}
+                    onChange={(e) => {
+                      updateFormData("hospitalCode", e.target.value.toUpperCase());
+                      setHospitalInfo(null);
+                    }}
+                    onBlur={(e) => validateHospitalCode(e.target.value)}
+                    placeholder="HOSP-XXXXXX"
+                    className="uppercase"
+                  />
+                  {validatingCode && <span className="text-sm text-gray-500 self-center">Checking…</span>}
+                </div>
+                {hospitalInfo && (
+                  <p className="text-sm text-green-700 flex items-center gap-1">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {hospitalInfo.hospitalName} — {hospitalInfo.city}, {hospitalInfo.state}
+                  </p>
+                )}
+                {formData.hospitalCode && !hospitalInfo && !validatingCode && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    Invalid hospital code. Please check with your hospital.
+                  </p>
+                )}
+                <p className="text-xs text-gray-500">Enter the unique code provided by your hospital (e.g. HOSP-AB1234)</p>
               </div>
 
               <div className="flex justify-end">
