@@ -1,11 +1,52 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { Heart, Clock, Shield, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Heart, Clock, Shield, CheckCircle2, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 export default function HospitalPendingPage() {
   const { data: session } = useSession();
+  const router = useRouter();
+  const [checking, setChecking] = useState(false);
+
+  // Poll every 5 seconds to check if hospital has been approved
+  useEffect(() => {
+    const checkApproval = async () => {
+      try {
+        setChecking(true);
+        const res = await fetch("/api/profile");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.verificationStatus === "verified") {
+            toast.success("🎉 Your hospital has been approved! Redirecting to dashboard...");
+            setTimeout(() => {
+              router.push("/dashboard/hospital");
+            }, 1500);
+            return true; // Stop polling
+          }
+        }
+      } catch {
+        // Silently ignore errors
+      } finally {
+        setChecking(false);
+      }
+      return false;
+    };
+
+    // Check immediately on mount
+    checkApproval();
+
+    // Then poll every 5 seconds
+    const interval = setInterval(async () => {
+      const approved = await checkApproval();
+      if (approved) clearInterval(interval);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
@@ -27,7 +68,7 @@ export default function HospitalPendingPage() {
           </h1>
 
           <p className="text-gray-500 mb-8 leading-relaxed">
-            Your hospital profile has been submitted successfully. Our admin team will review your documents and verify your credentials. This typically takes 2-5 business days.
+            Your hospital profile has been submitted successfully. Our admin team will review your documents and verify your credentials. This page will automatically redirect once approved.
           </p>
 
           {/* Status Steps */}
@@ -37,8 +78,15 @@ export default function HospitalPendingPage() {
               <span className="text-sm font-medium text-green-800">Profile submitted</span>
             </div>
             <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl">
-              <Clock className="h-5 w-5 text-amber-500 flex-shrink-0" />
-              <span className="text-sm font-medium text-amber-800">Admin review in progress</span>
+              {checking ? (
+                <Loader2 className="h-5 w-5 text-amber-500 flex-shrink-0 animate-spin" />
+              ) : (
+                <Clock className="h-5 w-5 text-amber-500 flex-shrink-0" />
+              )}
+              <span className="text-sm font-medium text-amber-800">
+                Admin review in progress
+                <span className="text-xs text-amber-500 ml-2">(checking...)</span>
+              </span>
             </div>
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
               <Shield className="h-5 w-5 text-gray-400 flex-shrink-0" />

@@ -761,7 +761,7 @@ export default function AdminDashboard() {
                             {flag.severity.toUpperCase()} RISK
                           </Badge>
                           <Badge variant="outline" className="font-mono text-xs">
-                            Score: {flag.riskScore}/100
+                            Risk Score: {flag.riskScore}/100
                           </Badge>
                           <Badge className="bg-indigo-50 text-indigo-700">
                             {flag.organType?.replace(/_/g, " ")}

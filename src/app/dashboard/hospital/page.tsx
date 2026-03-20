@@ -39,6 +39,9 @@ export default function HospitalDashboard() {
   const [findingMatches, setFindingMatches] = useState(false);
   const [selectedMatchDetails, setSelectedMatchDetails] = useState<any>(null);
   const [chatUser, setChatUser] = useState<any>(null);
+  const [scheduleMatchId, setScheduleMatchId] = useState<string | null>(null);
+  const [scheduleType, setScheduleType] = useState<"test" | "procedure">("test");
+  const [scheduleDate, setScheduleDate] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/auth/signin");
@@ -553,6 +556,7 @@ export default function HospitalDashboard() {
                         <span>Donor: {match.donorAccepted ? "✅ Accepted" : "⏳ Pending"}</span>
                         <span>Recipient: {match.recipientAccepted ? "✅ Accepted" : "⏳ Pending"}</span>
                         {match.testScheduledDate && <span>Test: {new Date(match.testScheduledDate).toLocaleDateString()}</span>}
+                        {match.procedureScheduledDate && <span>Procedure: {new Date(match.procedureScheduledDate).toLocaleDateString()}</span>}
                       </div>
                       {match.aiMatchExplanation && (
                         <div className="border rounded-lg p-2 bg-indigo-50/30 text-xs text-gray-600 mt-2">
@@ -568,16 +572,54 @@ export default function HospitalDashboard() {
                         </Button>
                       )}
                       {match.approvedByHospital && match.donorAccepted && match.recipientAccepted && !match.testScheduledDate && (
-                        <Button size="sm" variant="outline" className="w-full"
-                          onClick={() => handleSchedule(match.id, "test", new Date(Date.now() + 7 * 86400000).toISOString())}>
-                          <Calendar className="h-3 w-3 mr-1" /> Schedule Test
-                        </Button>
+                        scheduleMatchId === match.id && scheduleType === "test" ? (
+                          <div className="flex flex-col gap-1 w-full">
+                            <Label className="text-xs">Select Test Date</Label>
+                            <Input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)}
+                              min={new Date().toISOString().split("T")[0]} className="text-xs" />
+                            <div className="flex gap-1">
+                              <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700 text-xs"
+                                disabled={!scheduleDate}
+                                onClick={() => { handleSchedule(match.id, "test", new Date(scheduleDate).toISOString()); setScheduleMatchId(null); setScheduleDate(""); }}>
+                                Confirm
+                              </Button>
+                              <Button size="sm" variant="outline" className="flex-1 text-xs"
+                                onClick={() => { setScheduleMatchId(null); setScheduleDate(""); }}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="outline" className="w-full"
+                            onClick={() => { setScheduleMatchId(match.id); setScheduleType("test"); setScheduleDate(""); }}>
+                            <Calendar className="h-3 w-3 mr-1" /> Schedule Test
+                          </Button>
+                        )
                       )}
                       {match.testScheduledDate && !match.procedureScheduledDate && (
-                        <Button size="sm" variant="outline" className="w-full"
-                          onClick={() => handleSchedule(match.id, "procedure", new Date(Date.now() + 14 * 86400000).toISOString())}>
-                          <Calendar className="h-3 w-3 mr-1" /> Schedule Procedure
-                        </Button>
+                        scheduleMatchId === match.id && scheduleType === "procedure" ? (
+                          <div className="flex flex-col gap-1 w-full">
+                            <Label className="text-xs">Select Procedure Date</Label>
+                            <Input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)}
+                              min={new Date().toISOString().split("T")[0]} className="text-xs" />
+                            <div className="flex gap-1">
+                              <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700 text-xs"
+                                disabled={!scheduleDate}
+                                onClick={() => { handleSchedule(match.id, "procedure", new Date(scheduleDate).toISOString()); setScheduleMatchId(null); setScheduleDate(""); }}>
+                                Confirm
+                              </Button>
+                              <Button size="sm" variant="outline" className="flex-1 text-xs"
+                                onClick={() => { setScheduleMatchId(null); setScheduleDate(""); }}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="outline" className="w-full"
+                            onClick={() => { setScheduleMatchId(match.id); setScheduleType("procedure"); setScheduleDate(""); }}>
+                            <Calendar className="h-3 w-3 mr-1" /> Schedule Procedure
+                          </Button>
+                        )
                       )}
                       {match.procedureScheduledDate && !match.completedAt && (
                         <Button size="sm" className="bg-purple-600 hover:bg-purple-700 w-full"
@@ -753,6 +795,177 @@ export default function HospitalDashboard() {
                   disabled={verifyingId === selectedProfile.id}>
                   <XCircle className="h-4 w-4 mr-1" /> Reject
                 </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Match Details Dialog */}
+      <Dialog open={!!selectedMatchDetails} onOpenChange={() => setSelectedMatchDetails(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Heart className="h-5 w-5 text-purple-500" />
+              Match Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedMatchDetails && (
+            <div className="space-y-5">
+              {/* Match Score & Status */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <Badge className="bg-indigo-100 text-indigo-800">
+                  {selectedMatchDetails.organType?.replace(/_/g, " ")}
+                </Badge>
+                <Badge variant="outline" className="font-mono">
+                  {selectedMatchDetails.matchScore}% compatibility
+                </Badge>
+                <Badge className={
+                  selectedMatchDetails.status === "completed" ? "bg-purple-100 text-purple-800" :
+                  selectedMatchDetails.status === "approved" ? "bg-green-100 text-green-800" :
+                  "bg-yellow-100 text-yellow-800"
+                }>
+                  {selectedMatchDetails.status}
+                </Badge>
+              </div>
+
+              {/* Donor Info */}
+              <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-100">
+                <p className="text-xs font-semibold text-blue-600 uppercase mb-3">👤 Donor Information</p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-500">Full Name</p>
+                    <p className="font-medium">{selectedMatchDetails.donor?.fullName || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Age</p>
+                    <p className="font-medium">{selectedMatchDetails.donor?.age || "—"} years</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Blood Group</p>
+                    <p className="font-medium flex items-center gap-1">
+                      <Droplets className="h-3 w-3 text-red-500" />
+                      {selectedMatchDetails.donor?.bloodGroup || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Location</p>
+                    <p className="font-medium flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-gray-400" />
+                      {selectedMatchDetails.donor?.city}, {selectedMatchDetails.donor?.state}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Organs Available</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {(selectedMatchDetails.donor?.organs as string[] || []).map((organ: string) => (
+                        <Badge key={organ} className="text-xs bg-blue-100 text-blue-700">{organ.replace(/_/g, " ")}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Availability</p>
+                    <Badge className={selectedMatchDetails.donor?.availability === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}>
+                      {selectedMatchDetails.donor?.availability || "—"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recipient Info */}
+              <div className="bg-green-50/50 rounded-xl p-4 border border-green-100">
+                <p className="text-xs font-semibold text-green-600 uppercase mb-3">🏥 Recipient Information</p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-500">Patient Name</p>
+                    <p className="font-medium">{selectedMatchDetails.recipient?.patientName || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Age</p>
+                    <p className="font-medium">{selectedMatchDetails.recipient?.age || "—"} years</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Blood Group</p>
+                    <p className="font-medium flex items-center gap-1">
+                      <Droplets className="h-3 w-3 text-red-500" />
+                      {selectedMatchDetails.recipient?.bloodGroup || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Location</p>
+                    <p className="font-medium flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-gray-400" />
+                      {selectedMatchDetails.recipient?.city}, {selectedMatchDetails.recipient?.state}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Required Organ</p>
+                    <Badge className="bg-pink-100 text-pink-800">
+                      {selectedMatchDetails.recipient?.requiredOrgan?.replace(/_/g, " ") || "—"}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Priority</p>
+                    <Badge className={
+                      selectedMatchDetails.recipient?.priority === "emergency" ? "bg-red-100 text-red-800" :
+                      selectedMatchDetails.recipient?.priority === "high" ? "bg-orange-100 text-orange-800" :
+                      "bg-gray-100 text-gray-700"
+                    }>
+                      {selectedMatchDetails.recipient?.priority === "emergency" && <Zap className="h-3 w-3 mr-1" />}
+                      {selectedMatchDetails.recipient?.priority || "normal"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Match Progress */}
+              <div className="bg-gray-50 rounded-xl p-4 border">
+                <p className="text-xs font-semibold text-gray-600 uppercase mb-3">📋 Match Progress</p>
+                <div className="space-y-2">
+                  <div className={`flex items-center gap-2 text-sm p-2 rounded-lg ${selectedMatchDetails.approvedByHospital ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                    {selectedMatchDetails.approvedByHospital ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                    Hospital Approval
+                  </div>
+                  <div className={`flex items-center gap-2 text-sm p-2 rounded-lg ${selectedMatchDetails.donorAccepted ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                    {selectedMatchDetails.donorAccepted ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                    Donor Accepted
+                  </div>
+                  <div className={`flex items-center gap-2 text-sm p-2 rounded-lg ${selectedMatchDetails.recipientAccepted ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                    {selectedMatchDetails.recipientAccepted ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                    Recipient Accepted
+                  </div>
+                  {selectedMatchDetails.testScheduledDate && (
+                    <div className="flex items-center gap-2 text-sm p-2 rounded-lg bg-blue-50 text-blue-700">
+                      <Calendar className="h-4 w-4" />
+                      Test Scheduled: {new Date(selectedMatchDetails.testScheduledDate).toLocaleDateString()}
+                    </div>
+                  )}
+                  {selectedMatchDetails.procedureScheduledDate && (
+                    <div className="flex items-center gap-2 text-sm p-2 rounded-lg bg-purple-50 text-purple-700">
+                      <Calendar className="h-4 w-4" />
+                      Procedure: {new Date(selectedMatchDetails.procedureScheduledDate).toLocaleDateString()}
+                    </div>
+                  )}
+                  {selectedMatchDetails.completedAt && (
+                    <div className="flex items-center gap-2 text-sm p-2 rounded-lg bg-teal-50 text-teal-700">
+                      <CheckCircle className="h-4 w-4" />
+                      Completed: {new Date(selectedMatchDetails.completedAt).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Match Score Breakdown */}
+              <div className="bg-indigo-50/50 rounded-xl p-4 border border-indigo-100">
+                <p className="text-xs font-semibold text-indigo-600 uppercase mb-2">📊 Score Breakdown</p>
+                <p className="text-xs text-gray-500 mb-3">Matching is based on Blood Compatibility (30pts), Urgency (25pts), Location (15pts), Waiting Time (20pts), Verification (10pts)</p>
+                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-blue-500 to-indigo-600 h-3 rounded-full transition-all"
+                    style={{ width: `${selectedMatchDetails.matchScore}%` }}
+                  />
+                </div>
+                <p className="text-right text-xs text-gray-500 mt-1">{selectedMatchDetails.matchScore}/100</p>
               </div>
             </div>
           )}
