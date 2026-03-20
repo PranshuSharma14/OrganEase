@@ -53,6 +53,23 @@ export async function GET(req: NextRequest) {
         let donorWithDocs = {};
         if (donor) {
           const owner = await db.query.users.findFirst({ where: eq(users.id, donor.userId) });
+          
+          // Look up the linked hospital
+          let hospitalData: any = {};
+          if (donor.verifiedByHospitalId) {
+            const hospital = await db.query.hospitalProfiles.findFirst({
+              where: eq(hospitalProfiles.id, donor.verifiedByHospitalId),
+              columns: { hospitalName: true, city: true, state: true },
+            });
+            if (hospital) {
+              hospitalData = {
+                hospitalName: hospital.hospitalName,
+                hospitalCity: hospital.city,
+                hospitalState: hospital.state,
+              };
+            }
+          }
+
           donorWithDocs = {
             ...donor,
             email: owner?.email || "",
@@ -60,6 +77,7 @@ export async function GET(req: NextRequest) {
             medicalCertificate: donor.medicalCertificateUrl || "",
             bloodGroupReport: donor.bloodGroupReport || "",
             consentForm: donor.consentForm || "",
+            ...hospitalData,
           };
         }
 

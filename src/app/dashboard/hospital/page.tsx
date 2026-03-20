@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import DashboardLayout from "@/components/DashboardLayout";
+import HospitalMessageBox from "@/components/HospitalMessageBox";
 import {
   Building2, Users, CheckCircle, XCircle, Clock, Heart,
   FileText, MessageSquare, AlertCircle, TrendingUp, Activity,
@@ -37,6 +38,7 @@ export default function HospitalDashboard() {
   const [matchResults, setMatchResults] = useState<any[]>([]);
   const [findingMatches, setFindingMatches] = useState(false);
   const [selectedMatchDetails, setSelectedMatchDetails] = useState<any>(null);
+  const [chatUser, setChatUser] = useState<any>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/auth/signin");
@@ -559,7 +561,7 @@ export default function HospitalDashboard() {
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-col gap-2 ml-4 min-w-[100px]">
+                    <div className="flex flex-col gap-2 ml-4 min-w-[120px]">
                       {!match.approvedByHospital && (
                         <Button size="sm" className="bg-green-600 hover:bg-green-700 w-full" onClick={() => handleApproveMatch(match.id)}>
                           Approve
@@ -576,6 +578,58 @@ export default function HospitalDashboard() {
                           onClick={() => handleSchedule(match.id, "procedure", new Date(Date.now() + 14 * 86400000).toISOString())}>
                           <Calendar className="h-3 w-3 mr-1" /> Schedule Procedure
                         </Button>
+                      )}
+                      {match.procedureScheduledDate && !match.completedAt && (
+                        <Button size="sm" className="bg-purple-600 hover:bg-purple-700 w-full"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch("/api/matches", {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ matchId: match.id, action: "complete" }),
+                              });
+                              if (res.ok) {
+                                toast.success("Procedure marked as complete!");
+                                fetchDashboardData();
+                              } else {
+                                const data = await res.json();
+                                toast.error(data.error || "Failed");
+                              }
+                            } catch { toast.error("Failed to complete"); }
+                          }}>
+                          <CheckCircle className="h-3 w-3 mr-1" /> Mark Complete
+                        </Button>
+                      )}
+                      {match.completedAt && (
+                        <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 w-full"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch("/api/pdf/consent", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ matchId: match.id }),
+                              });
+                              if (res.ok) {
+                                const data = await res.json();
+                                if (data.pdfUrl) {
+                                  window.open(data.pdfUrl, "_blank");
+                                  toast.success("Certificate generated!");
+                                  fetchDashboardData();
+                                }
+                              } else {
+                                const data = await res.json();
+                                toast.error(data.error || "Failed to generate certificate");
+                              }
+                            } catch { toast.error("Failed to generate certificate"); }
+                          }}>
+                          <Download className="h-3 w-3 mr-1" /> Certificate
+                        </Button>
+                      )}
+                      {match.status === "approved" && (
+                        <Badge className="text-xs text-center bg-green-100 text-green-800">Active</Badge>
+                      )}
+                      {match.completedAt && (
+                        <Badge className="text-xs text-center bg-purple-100 text-purple-800">Completed</Badge>
                       )}
                     </div>
                   </div>
@@ -607,7 +661,7 @@ export default function HospitalDashboard() {
                   [...donors.map(d => ({ ...d, type: "donor", name: d.fullName })),
                    ...recipients.map(r => ({ ...r, type: "recipient", name: r.patientName }))]
                   .map((person: any) => (
-                    <div key={person.id} className="border rounded-lg p-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                    <div key={person.id} className={`border rounded-lg p-3 flex items-center justify-between hover:bg-gray-50 transition-colors ${chatUser?.id === person.id ? "border-blue-500 bg-blue-50" : ""}`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${person.type === "donor" ? "bg-blue-100" : "bg-green-100"}`}>
                           <User className={`h-4 w-4 ${person.type === "donor" ? "text-blue-600" : "text-green-600"}`} />
@@ -617,13 +671,26 @@ export default function HospitalDashboard() {
                           <p className="text-xs text-gray-500 capitalize">{person.type} • {person.bloodGroup}</p>
                         </div>
                       </div>
-                      <Button variant="outline" size="sm">
-                        <MessageSquare className="h-3 w-3 mr-1" /> Message
+                      <Button variant={chatUser?.id === person.id ? "default" : "outline"} size="sm" onClick={() => setChatUser(chatUser?.id === person.id ? null : person)}>
+                        <MessageSquare className="h-3 w-3 mr-1" /> {chatUser?.id === person.id ? "Close" : "Message"}
                       </Button>
                     </div>
                   ))
                 )}
               </div>
+
+              {/* Chat box for selected user */}
+              {chatUser && hospitalProfile && (
+                <div className="mt-4">
+                  <HospitalMessageBox
+                    hospitalId={hospitalProfile.id}
+                    hospitalName={hospitalProfile.hospitalName}
+                    userId={chatUser.userId}
+                    userRole={chatUser.type}
+                    currentUserId={session?.user?.id || ""}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

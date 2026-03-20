@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { matches } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { findMatches } from "@/lib/matching-engine";
 
 export async function POST(req: NextRequest) {
@@ -115,3 +117,72 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  console.log("PATCH /api/matches called");
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      console.log("PATCH /api/matches — no session");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { matchId, action, date, role } = body;
+    console.log("PATCH /api/matches body:", { matchId, action, date, role });
+
+    if (!matchId || !action) {
+      return NextResponse.json({ error: "matchId and action required" }, { status: 400 });
+    }
+
+    // Verify the match exists
+    const existingMatch = await db.query.matches.findFirst({
+      where: (m, { eq: e }) => e(m.id, matchId),
+    });
+
+    if (!existingMatch) {
+      console.log("PATCH /api/matches — match not found:", matchId);
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
+
+    console.log("Found match:", existingMatch.id, "status:", existingMatch.status);
+
+    if (action === "approve") {
+      await db.update(matches).set({
+        approvedByHospital: true,
+        approvedAt: new Date(),
+        status: "approved" as any,
+      }).where(eq(matches.id, matchId));
+      console.log("Match approved successfully:", matchId);
+      return NextResponse.json({ success: true, message: "Match approved" });
+    }
+
+    if (action === "schedule-test") {
+      await db.update(matches).set({
+        testScheduledDate: new Date(date),
+      }).where(eq(matches.id, matchId));
+      return NextResponse.json({ success: true, message: "Test scheduled" });
+    }
+
+    if (action === "schedule-procedure") {
+      await db.update(matches).set({
+        procedureScheduledDate: new Date(date),
+      }).where(eq(matches.id, matchId));
+      return NextResponse.json({ success: true, message: "Procedure scheduled" });
+    }
+
+    if (action === "complete") {
+      await db.update(matches).set({
+        status: "completed" as any,
+        completedAt: new Date(),
+      }).where(eq(matches.id, matchId));
+      return NextResponse.json({ success: true, message: "Match completed" });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  } catch (error: any) {
+    console.error("PATCH /api/matches ERROR:", error?.message, error?.stack);
+    return NextResponse.json({ error: "Failed to update match: " + (error?.message || "unknown") }, { status: 500 });
+  }
+}
+

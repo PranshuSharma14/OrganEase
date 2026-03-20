@@ -114,10 +114,10 @@ export default function DonorDashboard() {
   async function handleAcceptMatch(matchId: string) {
     setAcceptingMatch(matchId);
     try {
-      const res = await fetch("/api/matches", {
-        method: "PATCH",
+      const res = await fetch("/api/matches/accept", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId, action: "accept", role: "donor" }),
+        body: JSON.stringify({ matchId, accepted: true }),
       });
       if (res.ok) {
         toast.success("Match accepted!");
@@ -406,7 +406,7 @@ export default function DonorDashboard() {
               <CardDescription>Your linked hospital manages your donation process</CardDescription>
             </CardHeader>
             <CardContent>
-              {profile?.registeredHospitalId ? (
+              {(profile?.registeredHospitalId || profile?.verifiedByHospitalId) ? (
                 <div className="space-y-3">
                   <div className="border rounded-lg p-4 bg-blue-50/30">
                     <p className="font-semibold text-gray-900">{profile?.hospitalName || "Your Hospital"}</p>
@@ -418,6 +418,11 @@ export default function DonorDashboard() {
                       <Badge className="bg-green-100 text-green-800">
                         <CheckCircle2 className="h-3 w-3 mr-1" /> Linked
                       </Badge>
+                      {profile?.documentsVerified && (
+                        <Badge className="bg-blue-100 text-blue-800">
+                          Documents Verified
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <p className="text-xs text-gray-400">
@@ -429,7 +434,7 @@ export default function DonorDashboard() {
                   <Building2 className="h-12 w-12 text-gray-300 mx-auto mb-2" />
                   <p className="text-gray-500">No hospital linked yet.</p>
                   <p className="text-sm text-gray-400 mt-2">
-                    Contact your hospital administrator or update your profile with a hospital code.
+                    Your hospital will be linked once they verify your documents.
                   </p>
                 </div>
               )}
@@ -439,9 +444,9 @@ export default function DonorDashboard() {
 
         {/* Messages Tab */}
         <TabsContent value="messages">
-          {profile?.registeredHospitalId ? (
+          {(profile?.registeredHospitalId || profile?.verifiedByHospitalId) ? (
             <HospitalMessageBox
-              hospitalId={profile.registeredHospitalId}
+              hospitalId={profile?.registeredHospitalId || profile?.verifiedByHospitalId}
               hospitalName={profile.hospitalName}
               userId={session?.user?.id || ""}
               userRole="donor"
@@ -450,7 +455,7 @@ export default function DonorDashboard() {
             <Card>
               <CardContent className="py-12 text-center">
                 <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-500">Messaging will be available after you link to a hospital.</p>
+                <p className="text-gray-500">Messaging will be available after a hospital verifies your documents.</p>
               </CardContent>
             </Card>
           )}

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { donorProfiles, recipientProfiles, matches, hospitalProfiles, users } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull, or } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,7 +46,11 @@ export async function GET(request: NextRequest) {
       email: users.email,
     })
     .from(donorProfiles)
-    .leftJoin(users, eq(donorProfiles.userId, users.id));
+    .leftJoin(users, eq(donorProfiles.userId, users.id))
+    .where(or(
+      isNull(donorProfiles.verifiedByHospitalId),
+      eq(donorProfiles.verifiedByHospitalId, hospitalId)
+    ));
 
     // Get recipients registered with THIS hospital
     const hospitalRecipients = await db.select({
@@ -73,9 +77,13 @@ export async function GET(request: NextRequest) {
     .leftJoin(users, eq(recipientProfiles.userId, users.id))
     .where(eq(recipientProfiles.registeredHospitalId, hospitalId));
 
-    // Get matches for this hospital
+    // Get matches for this hospital with donor/recipient details
     const hospitalMatches = await db.query.matches.findMany({
       where: eq(matches.hospitalId, hospitalId),
+      with: {
+        donor: true,
+        recipient: true,
+      },
     });
 
     return NextResponse.json({

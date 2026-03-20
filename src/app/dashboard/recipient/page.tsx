@@ -90,10 +90,10 @@ export default function RecipientDashboard() {
   async function handleAcceptMatch(matchId: string) {
     setAcceptingMatch(matchId);
     try {
-      const res = await fetch("/api/matches", {
-        method: "PATCH",
+      const res = await fetch("/api/matches/accept", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId, action: "accept", role: "recipient" }),
+        body: JSON.stringify({ matchId, accepted: true }),
       });
       if (res.ok) {
         toast.success("Match accepted!");

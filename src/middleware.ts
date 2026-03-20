@@ -59,6 +59,7 @@ export default auth((req) => {
     // These hospital APIs can be called during onboarding
     const hospitalOnboardingBypass = [
       "/api/hospital/send-otp",
+      "/api/hospital/verify-otp",
       "/api/hospital/verifications",
     ];
 

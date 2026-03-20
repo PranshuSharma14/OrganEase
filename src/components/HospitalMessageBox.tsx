@@ -20,8 +20,9 @@ type HospitalMessageBoxProps = {
   hospitalId: string;
   hospitalName?: string;
   userId: string;
-  userRole: "donor" | "recipient";
+  userRole: "donor" | "recipient" | string;
   matchId?: string;
+  currentUserId?: string;
 };
 
 export default function HospitalMessageBox({
@@ -30,6 +31,7 @@ export default function HospitalMessageBox({
   userId,
   userRole,
   matchId,
+  currentUserId,
 }: HospitalMessageBoxProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -113,7 +115,7 @@ export default function HospitalMessageBox({
             </div>
           ) : (
             messages.map((msg) => {
-              const isMine = msg.senderId === userId;
+              const isMine = msg.senderId === (currentUserId || userId);
               return (
                 <div
                   key={msg.id}

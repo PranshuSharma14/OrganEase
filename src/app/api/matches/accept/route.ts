@@ -76,66 +76,54 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user's profile ID
-    let profileId: string | null = null;
-    if (session.user.role === "donor") {
-      const donorProfile = await db.query.donorProfiles.findFirst({
-        where: eq(donorProfiles.userId, session.user.id),
-        columns: { id: true },
-      });
-      profileId = donorProfile?.id || null;
-      console.log('Donor profile lookup:', {
-        userId: session.user.id,
-        profileId,
-        matchDonorId: match.donorId,
-        matches: profileId === match.donorId,
-      });
-      if (profileId !== match.donorId) {
-        console.error('Accept match failed: Donor profile mismatch', {
-          profileId,
-          matchDonorId: match.donorId,
-        });
-        return NextResponse.json({ error: "Unauthorized - Profile mismatch" }, { status: 403 });
-      }
-    } else if (session.user.role === "recipient") {
-      const recipientProfile = await db.query.recipientProfiles.findFirst({
-        where: eq(recipientProfiles.userId, session.user.id),
-        columns: { id: true },
-      });
-      profileId = recipientProfile?.id || null;
-      console.log('Recipient profile lookup:', {
-        userId: session.user.id,
-        profileId,
-        matchRecipientId: match.recipientId,
-        matches: profileId === match.recipientId,
-      });
-      if (profileId !== match.recipientId) {
-        console.error('Accept match failed: Recipient profile mismatch', {
-          profileId,
-          matchRecipientId: match.recipientId,
-        });
-        return NextResponse.json({ error: "Unauthorized - Profile mismatch" }, { status: 403 });
-      }
-    } else {
-      console.error('Accept match failed: Invalid role', { role: session.user.role });
-      return NextResponse.json({ error: "Unauthorized - Invalid role" }, { status: 403 });
+    // Get user's profile — check both donor and recipient regardless of JWT role
+    const donorProfile = await db.query.donorProfiles.findFirst({
+      where: eq(donorProfiles.userId, session.user.id),
+      columns: { id: true },
+    });
+    const recipientProfile = await db.query.recipientProfiles.findFirst({
+      where: eq(recipientProfiles.userId, session.user.id),
+      columns: { id: true },
+    });
+
+    // Determine actual role based on which profile matches the match
+    let actualRole: "donor" | "recipient" | null = null;
+    if (donorProfile && donorProfile.id === match.donorId) {
+      actualRole = "donor";
+    } else if (recipientProfile && recipientProfile.id === match.recipientId) {
+      actualRole = "recipient";
     }
 
-    // Update based on user role
+    console.log('Profile lookup:', {
+      userId: session.user.id,
+      jwtRole: session.user.role,
+      donorProfileId: donorProfile?.id,
+      recipientProfileId: recipientProfile?.id,
+      matchDonorId: match.donorId,
+      matchRecipientId: match.recipientId,
+      actualRole,
+    });
+
+    if (!actualRole) {
+      console.error('Accept match failed: No matching profile found');
+      return NextResponse.json({ error: "You are not part of this match" }, { status: 403 });
+    }
+
+    // Update based on actual role
     const updateData: any = {};
     
-    if (session.user.role === "donor") {
+    if (actualRole === "donor") {
       updateData.donorAccepted = accepted;
       updateData.donorAcceptedAt = accepted ? new Date() : null;
-    } else if (session.user.role === "recipient") {
+    } else if (actualRole === "recipient") {
       updateData.recipientAccepted = accepted;
       updateData.recipientAcceptedAt = accepted ? new Date() : null;
     }
 
     // Check if both parties will have accepted after this update
     const willBothAccept = 
-      (session.user.role === "donor" && accepted && match.recipientAccepted) ||
-      (session.user.role === "recipient" && accepted && match.donorAccepted);
+      (actualRole === "donor" && accepted && match.recipientAccepted) ||
+      (actualRole === "recipient" && accepted && match.donorAccepted);
 
     // Don't change status - keep it as "approved" even when both accept
     // Status only changes to "completed" when hospital marks procedure as complete
@@ -164,7 +152,7 @@ export async function POST(request: NextRequest) {
     // Send notifications
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     
-    if (session.user.role === "donor" && accepted) {
+    if (actualRole === "donor" && accepted) {
       // Notify recipient
       if (match.recipient?.userId) {
         await createNotification({

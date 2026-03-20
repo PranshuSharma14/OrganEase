@@ -52,12 +52,11 @@ export async function findMatchesForRecipient(recipientId: string, hospitalId: s
     throw new Error("Recipient not found");
   }
 
-  // CRITICAL: Only find donors registered at the SAME hospital
+  // Find all verified, available donors (donors aren't tied to a specific hospital)
   const compatibleDonors = await db.query.donorProfiles.findMany({
     where: and(
       eq(donorProfiles.availability, "active"),
       eq(donorProfiles.documentsVerified, true),
-      eq(donorProfiles.registeredHospitalId, hospitalId)
     ),
   });
 

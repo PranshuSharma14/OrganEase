@@ -21,24 +21,27 @@ export async function GET(request: NextRequest) {
     });
 
     // System stats
-    const totalUsers = await db.select({ count: sql<number>`count(*)` }).from(users);
-    const totalDonors = await db.select({ count: sql<number>`count(*)` }).from(donorProfiles);
-    const totalRecipients = await db.select({ count: sql<number>`count(*)` }).from(recipientProfiles);
-    const totalMatches = await db.select({ count: sql<number>`count(*)` }).from(matches);
+    const totalUsers = await db.select({ count: sql<number>`count(*)::int` }).from(users);
+    const totalDonors = await db.select({ count: sql<number>`count(*)::int` }).from(donorProfiles);
+    const totalRecipients = await db.select({ count: sql<number>`count(*)::int` }).from(recipientProfiles);
+    const totalMatches = await db.select({ count: sql<number>`count(*)::int` }).from(matches);
     const pendingHospitals = hospitals.filter(h => h.verificationStatus === "pending");
     const verifiedHospitals = hospitals.filter(h => h.verificationStatus === "verified");
 
+    const statsObj = {
+      totalUsers: totalUsers[0]?.count ?? 0,
+      totalDonors: totalDonors[0]?.count ?? 0,
+      totalRecipients: totalRecipients[0]?.count ?? 0,
+      totalMatches: totalMatches[0]?.count ?? 0,
+      pendingHospitals: pendingHospitals.length,
+      verifiedHospitals: verifiedHospitals.length,
+      totalHospitals: hospitals.length,
+    };
+    console.log("Admin stats:", statsObj);
+
     return NextResponse.json({
       hospitals,
-      stats: {
-        totalUsers: Number(totalUsers[0]?.count || 0),
-        totalDonors: Number(totalDonors[0]?.count || 0),
-        totalRecipients: Number(totalRecipients[0]?.count || 0),
-        totalMatches: Number(totalMatches[0]?.count || 0),
-        pendingHospitals: pendingHospitals.length,
-        verifiedHospitals: verifiedHospitals.length,
-        totalHospitals: hospitals.length,
-      },
+      stats: statsObj,
     });
   } catch (error: any) {
     if (error?.status) {

@@ -296,6 +296,7 @@ export async function POST(request: NextRequest) {
         await db.update(donorProfiles)
           .set({
             documentsVerified: false,
+            verifiedByHospitalId: hospitalProfile.id,
           })
           .where(eq(donorProfiles.id, profileId));
         // notify donor of rejection
