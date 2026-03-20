@@ -20,27 +20,63 @@ export async function GET(request: NextRequest) {
       orderBy: (hp, { desc }) => [desc(hp.createdAt)],
     });
 
+    // Get all donors with user info
+    const allDonors = await db.query.donorProfiles.findMany({
+      with: {
+        user: {
+          columns: { email: true, name: true },
+        },
+      },
+      orderBy: (dp, { desc }) => [desc(dp.createdAt)],
+    });
+
+    // Get all recipients with user info
+    const allRecipients = await db.query.recipientProfiles.findMany({
+      with: {
+        user: {
+          columns: { email: true, name: true },
+        },
+      },
+      orderBy: (rp, { desc }) => [desc(rp.createdAt)],
+    });
+
+    // Get all matches with donor, recipient, hospital info
+    const allMatches = await db.query.matches.findMany({
+      with: {
+        donor: {
+          columns: { id: true, fullName: true, bloodGroup: true, city: true, state: true },
+        },
+        recipient: {
+          columns: { id: true, patientName: true, bloodGroup: true, city: true, state: true, requiredOrgan: true, priority: true },
+        },
+        hospital: {
+          columns: { id: true, hospitalName: true, city: true },
+        },
+      },
+      orderBy: (m, { desc }) => [desc(m.createdAt)],
+    });
+
     // System stats
-    const totalUsers = await db.select({ count: sql<number>`count(*)::int` }).from(users);
-    const totalDonors = await db.select({ count: sql<number>`count(*)::int` }).from(donorProfiles);
-    const totalRecipients = await db.select({ count: sql<number>`count(*)::int` }).from(recipientProfiles);
-    const totalMatches = await db.select({ count: sql<number>`count(*)::int` }).from(matches);
     const pendingHospitals = hospitals.filter(h => h.verificationStatus === "pending");
     const verifiedHospitals = hospitals.filter(h => h.verificationStatus === "verified");
 
     const statsObj = {
-      totalUsers: totalUsers[0]?.count ?? 0,
-      totalDonors: totalDonors[0]?.count ?? 0,
-      totalRecipients: totalRecipients[0]?.count ?? 0,
-      totalMatches: totalMatches[0]?.count ?? 0,
+      totalUsers: allDonors.length + allRecipients.length + hospitals.length,
+      totalDonors: allDonors.length,
+      totalRecipients: allRecipients.length,
+      totalMatches: allMatches.length,
+      activeMatches: allMatches.filter(m => m.status === "approved" || m.status === "matched").length,
+      completedMatches: allMatches.filter(m => m.status === "completed").length,
       pendingHospitals: pendingHospitals.length,
       verifiedHospitals: verifiedHospitals.length,
       totalHospitals: hospitals.length,
     };
-    console.log("Admin stats:", statsObj);
 
     return NextResponse.json({
       hospitals,
+      donors: allDonors,
+      recipients: allRecipients,
+      matches: allMatches,
       stats: statsObj,
     });
   } catch (error: any) {
