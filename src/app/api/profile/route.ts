@@ -6,6 +6,12 @@ import { eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { verificationTokens } from "@/lib/db/schema";
 import { createNotification } from "@/lib/notifications";
+import { encrypt, decryptDocUrls } from "@/lib/encryption";
+
+// Document URL fields for each role
+const DONOR_DOC_FIELDS = ["aadhaarUrl", "medicalCertificateUrl", "bloodGroupReport", "consentForm"];
+const RECIPIENT_DOC_FIELDS = ["medicalReportUrl", "hospitalLetterUrl", "governmentIdUrl", "insuranceCardUrl"];
+const HOSPITAL_DOC_FIELDS = ["verificationDocUrl", "licenseDocUrl", "accreditationDocUrl"];
 
 export async function GET(req: NextRequest) {
   try {
@@ -70,13 +76,15 @@ export async function GET(req: NextRequest) {
             }
           }
 
+          // Decrypt document URLs before sending to client
+          const decryptedDonor = decryptDocUrls(donor as any, DONOR_DOC_FIELDS);
           donorWithDocs = {
-            ...donor,
+            ...decryptedDonor,
             email: owner?.email || "",
-            governmentId: donor.aadhaarUrl || "",
-            medicalCertificate: donor.medicalCertificateUrl || "",
-            bloodGroupReport: donor.bloodGroupReport || "",
-            consentForm: donor.consentForm || "",
+            governmentId: decryptedDonor.aadhaarUrl || "",
+            medicalCertificate: decryptedDonor.medicalCertificateUrl || "",
+            bloodGroupReport: decryptedDonor.bloodGroupReport || "",
+            consentForm: decryptedDonor.consentForm || "",
             ...hospitalData,
           };
         }
@@ -96,7 +104,8 @@ export async function GET(req: NextRequest) {
       let recipientWithEmail = {};
       if (recipient) {
         const owner = await db.query.users.findFirst({ where: eq(users.id, recipient.userId) });
-        recipientWithEmail = { ...recipient, email: owner?.email || "" };
+        const decryptedRecipient = decryptDocUrls(recipient as any, RECIPIENT_DOC_FIELDS);
+        recipientWithEmail = { ...decryptedRecipient, email: owner?.email || "" };
       }
 
       return NextResponse.json(recipientWithEmail);
@@ -111,7 +120,8 @@ export async function GET(req: NextRequest) {
       let hospitalWithEmail = {};
       if (hospital) {
         const owner = await db.query.users.findFirst({ where: eq(users.id, hospital.userId) });
-        hospitalWithEmail = { ...hospital, email: owner?.email || "" };
+        const decryptedHospital = decryptDocUrls(hospital as any, HOSPITAL_DOC_FIELDS);
+        hospitalWithEmail = { ...decryptedHospital, email: owner?.email || "" };
       }
 
       return NextResponse.json(hospitalWithEmail);
@@ -160,10 +170,10 @@ export async function POST(req: NextRequest) {
             organs: data.organs,
             availability: data.availability || "active",
             emergencyAvailable: data.emergencyAvailable || false,
-            aadhaarUrl: data.governmentId,
-            medicalCertificateUrl: data.medicalCertificate,
-              bloodGroupReport: data.bloodGroupReport,
-            consentForm: data.consentForm,
+            aadhaarUrl: data.governmentId ? encrypt(data.governmentId) : undefined,
+            medicalCertificateUrl: data.medicalCertificate ? encrypt(data.medicalCertificate) : undefined,
+            bloodGroupReport: data.bloodGroupReport ? encrypt(data.bloodGroupReport) : undefined,
+            consentForm: data.consentForm ? encrypt(data.consentForm) : undefined,
             updatedAt: new Date(),
           })
           .where(eq(donorProfiles.userId, effectiveUserId))
@@ -181,10 +191,10 @@ export async function POST(req: NextRequest) {
           organs: data.organs,
           availability: data.availability || "active",
           emergencyAvailable: data.emergencyAvailable || false,
-          aadhaarUrl: data.governmentId,
-          medicalCertificateUrl: data.medicalCertificate,
-            bloodGroupReport: data.bloodGroupReport,
-          consentForm: data.consentForm,
+          aadhaarUrl: data.governmentId ? encrypt(data.governmentId) : undefined,
+          medicalCertificateUrl: data.medicalCertificate ? encrypt(data.medicalCertificate) : undefined,
+          bloodGroupReport: data.bloodGroupReport ? encrypt(data.bloodGroupReport) : undefined,
+          consentForm: data.consentForm ? encrypt(data.consentForm) : undefined,
         }).returning();
         return NextResponse.json(donor);
       }
@@ -217,10 +227,10 @@ export async function POST(req: NextRequest) {
         requiredOrgan: data.organNeeded,
         city: data.city,
         state: data.state,
-        medicalReportUrl: data.medicalReports,
-        hospitalLetterUrl: data.doctorReferral,
-        insuranceCardUrl: data.insuranceCard,
-        governmentIdUrl: data.governmentId,
+        medicalReportUrl: data.medicalReports ? encrypt(data.medicalReports) : undefined,
+        hospitalLetterUrl: data.doctorReferral ? encrypt(data.doctorReferral) : undefined,
+        insuranceCardUrl: data.insuranceCard ? encrypt(data.insuranceCard) : undefined,
+        governmentIdUrl: data.governmentId ? encrypt(data.governmentId) : undefined,
         priority: data.urgencyLevel === "high" || data.urgencyLevel === "emergency" ? data.urgencyLevel : "normal",
         ...(registeredHospitalId ? { registeredHospitalId } : {}),
       };
@@ -273,9 +283,9 @@ export async function POST(req: NextRequest) {
         numberOfTransplantSurgeons: data.numberOfTransplantSurgeons ? parseInt(data.numberOfTransplantSurgeons) : null,
         transplantCapacity: data.transplantCapacity ? parseInt(data.transplantCapacity) : null,
         specializations: data.specializations || [],
-        verificationDocUrl: data.hospitalLicense || null,
-        licenseDocUrl: data.hospitalLicense || null,
-        accreditationDocUrl: data.accreditationCertificate || null,
+        verificationDocUrl: data.hospitalLicense ? encrypt(data.hospitalLicense) : null,
+        licenseDocUrl: data.hospitalLicense ? encrypt(data.hospitalLicense) : null,
+        accreditationDocUrl: data.accreditationCertificate ? encrypt(data.accreditationCertificate) : null,
       };
 
       if (existingHospital) {

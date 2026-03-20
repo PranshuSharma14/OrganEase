@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { hospitalProfiles, users, donorProfiles, recipientProfiles, matches } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { verifyHospital } from "@/lib/services/verificationService";
+import { decryptDocUrls } from "@/lib/encryption";
 
 // GET: Admin dashboard data — hospitals list, system stats
 export async function GET(request: NextRequest) {
@@ -72,8 +73,12 @@ export async function GET(request: NextRequest) {
       totalHospitals: hospitals.length,
     };
 
+    // Decrypt hospital document URLs for admin viewing
+    const HOSPITAL_DOC_FIELDS = ["verificationDocUrl", "licenseDocUrl", "accreditationDocUrl"];
+    const decryptedHospitals = hospitals.map(h => decryptDocUrls(h as any, HOSPITAL_DOC_FIELDS));
+
     return NextResponse.json({
-      hospitals,
+      hospitals: decryptedHospitals,
       donors: allDonors,
       recipients: allRecipients,
       matches: allMatches,
