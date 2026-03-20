@@ -16,12 +16,40 @@ export async function GET(request: NextRequest) {
     const codeToValidate = searchParams.get("validateCode");
     if (codeToValidate) {
       const code = codeToValidate.toUpperCase().trim();
+      console.log("🔍 Validating hospital code:", { inputCode: codeToValidate, normalizedCode: code });
+      
+      // Debug: Check all hospital codes in database
+      try {
+        const allHospitals = await db.query.hospitalProfiles.findMany({
+          columns: { id: true, hospitalName: true, hospitalCode: true },
+        });
+        console.log("📋 Hospitals in database:", allHospitals.map(h => ({ 
+          name: h.hospitalName,
+          code: h.hospitalCode || "NULL"
+        })));
+      } catch (e) {
+        console.warn("Could not fetch all hospitals for debugging:", e);
+      }
+      
       const hospital = await db.query.hospitalProfiles.findFirst({
         where: eq(hospitalProfiles.hospitalCode, code),
         columns: { id: true, hospitalName: true, city: true, state: true },
       });
+      
+      console.log("✅ Hospital lookup result:", hospital ? `Found: ${hospital.hospitalName}` : "Not found");
+      
       if (!hospital) {
-        return NextResponse.json({ valid: false, error: "Invalid hospital code" });
+        console.warn(`❌ Hospital code "${code}" not found in database`);
+        
+        // Return more detailed error info for debugging
+        return NextResponse.json({ 
+          valid: false, 
+          error: "Invalid hospital code",
+          debug: {
+            searchedCode: code,
+            message: `No hospital found with code "${code}". Please verify the code with your hospital.`
+          }
+        });
       }
       return NextResponse.json({
         valid: true,

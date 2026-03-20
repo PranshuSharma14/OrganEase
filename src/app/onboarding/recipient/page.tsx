@@ -11,11 +11,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ORGAN_TYPES, BLOOD_GROUPS, URGENCY_LEVELS } from "@/lib/constants";
 import { CheckCircle2, Upload, User, FileText, AlertCircle } from "lucide-react";
-import { signIn } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
 export default function RecipientOnboarding() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
@@ -184,14 +185,21 @@ export default function RecipientOnboarding() {
 
     setLoading(true);
     
-    console.log("=== SUBMITTING RECIPIENT PROFILE ===");
-    console.log("Medical Reports URL length:", formData.medicalReports?.length || 0);
-    console.log("Doctor Referral URL length:", formData.doctorReferral?.length || 0);
-    console.log("Medical Reports starts with:", formData.medicalReports?.substring(0, 50));
-    console.log("Doctor Referral starts with:", formData.doctorReferral?.substring(0, 50));
+
     
     try {
-        // Create or get user account for onboarding (so we can attach profile to user)
+      let userId: string | undefined;
+
+      if (session?.user?.id) {
+        // OAuth user — use session ID
+        userId = session.user.id as string;
+        await fetch("/api/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ updateRole: "recipient" }),
+        }).catch(() => {});
+      } else {
+        // Create account
         const userResponse = await fetch("/api/auth/create-account", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -200,12 +208,12 @@ export default function RecipientOnboarding() {
 
         if (!userResponse.ok) {
           const err = await userResponse.json().catch(() => ({}));
-          console.error('Failed to create/get user:', err);
-          throw new Error('Failed to create account');
+          throw new Error(err.error || 'Failed to create account');
         }
 
         const userData = await userResponse.json();
-        const userId = userData.userId;
+        userId = userData.userId;
+      }
 
       const response = await fetch("/api/profile", {
         method: "POST",
@@ -214,30 +222,18 @@ export default function RecipientOnboarding() {
             role: "recipient",
             userId,
             ...formData,
+            email: session?.user?.email || formData.email,
             verificationStatus: "pending",
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Profile creation failed:", errorData);
-        throw new Error("Failed to submit profile");
+        throw new Error(errorData.error || "Failed to submit profile");
       }
 
-      toast.success("Profile submitted! Awaiting hospital verification.");
-
-      // Sign in the newly created onboarding account so the user sees their dashboard
-      try {
-        await signIn("credentials", {
-          email: formData.email.trim().toLowerCase(),
-          password: "onboarding-account",
-          redirect: false,
-        });
-      } catch (e) {
-        console.warn('Auto sign-in failed', e);
-      }
-
-      router.push("/dashboard/recipient");
+      toast.success("Profile submitted successfully!");
+      router.push("/auth/redirect");
     } catch (error) {
       console.error("Submission error:", error);
       toast.error("Failed to submit profile. Please try again.");
@@ -247,7 +243,7 @@ export default function RecipientOnboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-red-50 via-white to-orange-50 py-12 px-4">
+    <div className="min-h-screen bg-[#F8FAFC] py-12 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Progress Steps */}
         <div className="mb-8">
@@ -255,22 +251,22 @@ export default function RecipientOnboarding() {
             {[1, 2, 3].map((s) => (
               <div key={s} className="flex items-center">
                 <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                  step >= s ? "bg-red-600 text-white" : "bg-gray-200 text-gray-600"
+                  step >= s ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"
                 }`}>
                   {step > s ? <CheckCircle2 className="h-6 w-6" /> : s}
                 </div>
                 {s < 3 && (
                   <div className={`w-24 h-1 mx-2 ${
-                    step > s ? "bg-red-600" : "bg-gray-200"
+                    step > s ? "bg-blue-600" : "bg-gray-200"
                   }`} />
                 )}
               </div>
             ))}
           </div>
           <div className="flex justify-center gap-20 mt-3 text-xs font-medium">
-            <span className={`text-center w-24 ${step >= 1 ? "text-red-600" : "text-gray-600"}`}>Personal Info</span>
-            <span className={`text-center w-24 ${step >= 2 ? "text-red-600" : "text-gray-600"}`}>Medical Info</span>
-            <span className={`text-center w-24 ${step >= 3 ? "text-red-600" : "text-gray-600"}`}>Documents</span>
+            <span className={`text-center w-24 ${step >= 1 ? "text-blue-600" : "text-gray-600"}`}>Personal Info</span>
+            <span className={`text-center w-24 ${step >= 2 ? "text-blue-600" : "text-gray-600"}`}>Medical Info</span>
+            <span className={`text-center w-24 ${step >= 3 ? "text-blue-600" : "text-gray-600"}`}>Documents</span>
           </div>
         </div>
 

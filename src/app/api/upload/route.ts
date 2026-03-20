@@ -3,14 +3,11 @@ import { auth } from "@/auth";
 
 export async function POST(request: NextRequest) {
   try {
-    // Allow uploads during onboarding before the user has an authenticated session.
-    // Authentication is optional here because uploads are stored in Cloudinary and
-    // the returned URL is used in the onboarding payload to create profiles.
-    // If you want to restrict uploads later, add validation or signed uploads.
-    // const session = await auth();
-    // if (!session?.user) {
-    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    // }
+    // Require authentication for uploads
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const formData = await request.formData();
     const file = formData.get("file") as File;

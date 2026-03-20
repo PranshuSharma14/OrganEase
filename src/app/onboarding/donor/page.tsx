@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,10 +13,10 @@ import { Badge } from "@/components/ui/badge";
 import { Heart, Upload, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ORGAN_TYPES, BLOOD_GROUPS } from "@/lib/constants";
-import { signIn } from "next-auth/react";
 
 export default function DonorOnboarding() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     fullName: "",
@@ -36,46 +37,49 @@ export default function DonorOnboarding() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate email and phone
-    if (!formData.email || !formData.phone) {
+    const email = session?.user?.email || formData.email;
+    const phone = formData.phone;
+
+    if (!email || !phone) {
       toast.error("Email and phone are required");
       return;
     }
 
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!emailRegex.test(formData.email)) {
-      toast.error("Please enter a valid email address");
-      return;
-    }
-
-    console.log("=== SUBMITTING DONOR PROFILE ===");
-    console.log("Email:", formData.email);
-    console.log("Government ID URL length:", formData.governmentId?.length || 0);
-    console.log("Medical Certificate URL length:", formData.medicalCertificate?.length || 0);
-    console.log("Blood Group Report URL length:", formData.bloodGroupReport?.length || 0);
-    console.log("Consent Form URL length:", formData.consentForm?.length || 0);
-
     try {
-      // Create user account with email
-      const userResponse = await fetch("/api/auth/create-account", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: formData.email.trim().toLowerCase(),
-          name: formData.fullName,
-          phone: formData.phone,
-          role: "donor",
-        }),
-      });
+      let userId: string | undefined;
 
-      if (!userResponse.ok) {
-        const errorData = await userResponse.json();
-        toast.error(errorData.error || "Failed to create account");
-        return;
+      if (session?.user?.id) {
+        // User is signed in via OAuth — use their session user ID
+        userId = session.user.id as string;
+
+        // Update role to donor
+        await fetch("/api/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ updateRole: "donor" }),
+        }).catch(() => {});
+      } else {
+        // Not signed in — create account via API
+        const userResponse = await fetch("/api/auth/create-account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: email.trim().toLowerCase(),
+            name: formData.fullName,
+            phone: formData.phone,
+            role: "donor",
+          }),
+        });
+
+        if (!userResponse.ok) {
+          const errorData = await userResponse.json();
+          toast.error(errorData.error || "Failed to create account");
+          return;
+        }
+
+        const userData = await userResponse.json();
+        userId = userData.userId;
       }
-
-      const userData = await userResponse.json();
-      console.log("User created:", userData);
 
       // Create donor profile
       const response = await fetch("/api/profile", {
@@ -83,28 +87,20 @@ export default function DonorOnboarding() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           role: "donor",
-          userId: userData.userId,
+          userId,
           ...formData,
+          email: email,
           age: parseInt(formData.age),
         }),
       });
 
       if (response.ok) {
         toast.success("Profile created successfully!");
-        
-        // Automatically sign in the user
-        await signIn("credentials", {
-          email: formData.email.trim().toLowerCase(),
-          password: "onboarding-account",
-          redirect: false,
-        });
-        
-        // Redirect to dashboard
-        router.push("/dashboard/donor");
+        router.push("/auth/redirect");
       } else {
         const errorData = await response.json();
         console.error("Profile creation failed:", errorData);
-        toast.error("Failed to create profile");
+        toast.error(errorData.error || "Failed to create profile");
       }
     } catch (error) {
       console.error("Error creating profile:", error);
@@ -122,12 +118,12 @@ export default function DonorOnboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-3xl shadow-xl">
+    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
+      <Card className="w-full max-w-3xl shadow-lg border-0 rounded-2xl">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <Heart className="h-16 w-16 text-blue-600 fill-blue-600" />
-          </div>
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center">
+              <Heart className="h-7 w-7 text-blue-600" />
+            </div>
           <CardTitle className="text-3xl font-bold">Become a Verified Donor</CardTitle>
           <CardDescription className="text-base mt-2">
             Complete your profile to start saving lives

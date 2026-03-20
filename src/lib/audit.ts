@@ -4,7 +4,7 @@ import { auditLogs } from "@/lib/db/schema";
 type AuditLogParams = {
   userId?: string;
   userEmail: string;
-  userRole: "donor" | "recipient" | "hospital";
+  userRole: "donor" | "recipient" | "hospital" | "admin";
   action: string;
   entity: string;
   entityId: string;

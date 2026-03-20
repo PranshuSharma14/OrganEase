@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { verificationTokens, users, hospitalProfiles } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
+// GET: Handle email verification link clicks
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -32,13 +33,13 @@ export async function GET(req: NextRequest) {
     // Mark user's email verified
     await db.update(users).set({ emailVerified: new Date() }).where(eq(users.id, owner.id));
 
-    // Mark hospital profile verified where userId matches
-    await db.update(hospitalProfiles).set({ verified: true, updatedAt: new Date() }).where(eq(hospitalProfiles.userId, owner.id));
+    // Mark hospital profile email as verified (but NOT admin-verified)
+    await db.update(hospitalProfiles).set({ updatedAt: new Date() }).where(eq(hospitalProfiles.userId, owner.id));
 
     // Remove the token
     await db.delete(verificationTokens).where(eq(verificationTokens.identifier, email));
 
-    // Redirect to a confirmation page or return JSON
+    // Redirect to a confirmation page
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
     return NextResponse.redirect(`${appUrl}/onboarding/hospital/verified`);
   } catch (error) {
@@ -46,35 +47,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { db } from "@/lib/db";
-import { donorProfiles, recipientProfiles, hospitalProfiles } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 
+// POST: Hospital verifies a donor or recipient profile
 export async function POST(request: NextRequest) {
   try {
+    const { auth } = await import("@/auth");
     const session = await auth();
     
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
-    console.log("Verify request from user:", { id: session.user.id, role: session.user.role });
-    
     // Require hospital role for verification
-    if (session.user.role !== "hospital") {
-      console.error("Access denied - user role:", session.user.role);
-      return NextResponse.json({ error: `Hospital access required. Current role: ${session.user.role}` }, { status: 403 });
+    if ((session.user as any).role !== "hospital") {
+      return NextResponse.json({ error: `Hospital access required. Current role: ${(session.user as any).role}` }, { status: 403 });
     }
 
     // Get hospital profile ID
     const hospitalProfile = await db.query.hospitalProfiles.findFirst({
-      where: eq(hospitalProfiles.userId, session.user.id),
+      where: eq(hospitalProfiles.userId, session.user.id!),
     });
 
     if (!hospitalProfile) {
       return NextResponse.json({ error: "Hospital profile not found" }, { status: 404 });
+    }
+
+    // Only verified hospitals can verify profiles
+    if (hospitalProfile.verificationStatus !== "verified") {
+      return NextResponse.json({ error: "Your hospital must be verified by admin before you can verify profiles" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -86,6 +86,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const { donorProfiles, recipientProfiles } = await import("@/lib/db/schema");
 
     if (action === "approve") {
       if (profileType === "donor") {

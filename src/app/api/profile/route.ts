@@ -348,3 +348,44 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+export async function PUT(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+
+    // Handle role update from onboarding
+    if (body.updateRole) {
+      const validRoles = ["donor", "recipient", "hospital"];
+      if (!validRoles.includes(body.updateRole)) {
+        return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+      }
+
+      // Don't change admin role
+      const currentUser = await db.query.users.findFirst({
+        where: eq(users.id, session.user.id),
+      });
+      if (currentUser?.role === "admin") {
+        return NextResponse.json({ message: "Admin role preserved" });
+      }
+
+      await db.update(users).set({ role: body.updateRole }).where(eq(users.id, session.user.id));
+      return NextResponse.json({ message: `Role updated to ${body.updateRole}` });
+    }
+
+    // Handle availability toggle
+    if (body.availability && body.role === "donor") {
+      await db.update(donorProfiles).set({ availability: body.availability }).where(eq(donorProfiles.userId, session.user.id));
+      return NextResponse.json({ message: "Availability updated" });
+    }
+
+    return NextResponse.json({ error: "No valid update fields" }, { status: 400 });
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

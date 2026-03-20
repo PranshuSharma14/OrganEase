@@ -1,1584 +1,696 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import {
-  Building2,
-  Users,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Heart,
-  FileText,
-  MessageSquare,
-  AlertCircle,
-  TrendingUp,
-  Activity,
-  Calendar,
-  Eye,
-  Download,
-  Shield,
-  Edit,
-  Trash2,
-  LogOut,
-  User,
-} from "lucide-react";
-import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { signOut } from "next-auth/react";
+import DashboardLayout from "@/components/DashboardLayout";
+import {
+  Building2, Users, CheckCircle, XCircle, Clock, Heart,
+  FileText, MessageSquare, AlertCircle, TrendingUp, Activity,
+  Calendar, Eye, Download, Shield, Edit, User, Search,
+  Droplets, MapPin, Zap, BarChart3,
+} from "lucide-react";
+import { toast } from "sonner";
 
 export default function HospitalDashboard() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [hospitalProfile, setHospitalProfile] = useState<any>(null);
-  const [pendingVerifications, setPendingVerifications] = useState<any[]>([]);
+  const [donors, setDonors] = useState<any[]>([]);
+  const [recipients, setRecipients] = useState<any[]>([]);
   const [activeMatches, setActiveMatches] = useState<any[]>([]);
-  const [stats, setStats] = useState({
-    totalVerified: 0,
-    pendingReview: 0,
-    activeMatches: 0,
-    completedProcedures: 0,
-  });
+  const [stats, setStats] = useState({ totalDonors: 0, totalRecipients: 0, pendingReview: 0, activeMatches: 0, completedProcedures: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedProfile, setSelectedProfile] = useState<any>(null);
-  const [currentRole, setCurrentRole] = useState<string>("");
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [editForm, setEditForm] = useState<any>({});
-  const [selectedMatch, setSelectedMatch] = useState<any>(null);
-  const [matchDetailsDialog, setMatchDetailsDialog] = useState(false);
-  const [approvingMatch, setApprovingMatch] = useState<string | null>(null);
-  const [approvalNotes, setApprovalNotes] = useState("");
-  const [schedulingMatch, setSchedulingMatch] = useState<string | null>(null);
-  const [scheduleDate, setScheduleDate] = useState("");
-  const [scheduleType, setScheduleType] = useState<"test" | "procedure">("test");
-  const [currentMatch, setCurrentMatch] = useState<any>(null);
-  const [showMoreDetails, setShowMoreDetails] = useState(false);
-
-  const viewDocument = async (url: string, filename: string) => {
-    if (!url) {
-      toast.error("Document not available");
-      return;
-    }
-
-    console.log("Opening document:", filename, url);
-
-    // For Cloudinary URLs, fetch and create blob for proper PDF viewing
-    if (url.includes('cloudinary.com')) {
-      try {
-        toast.info("Loading document...");
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error('Failed to fetch document');
-        }
-        
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        
-        const newWindow = window.open(blobUrl, '_blank');
-        if (!newWindow) {
-          toast.error("Please allow popups to view documents");
-        } else {
-          toast.success("Document opened");
-        }
-        
-        // Clean up after 2 minutes
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
-      } catch (error) {
-        console.error("Error opening document:", error);
-        toast.error("Failed to open document. Trying direct link...");
-        window.open(url, '_blank');
-      }
-      return;
-    }
-
-    // Check if it's a base64 data URL
-    if (url.startsWith('data:')) {
-      // For base64, create a blob and open it
-      try {
-        const base64Data = url.split(',')[1];
-        const mimeType = url.split(':')[1].split(';')[0];
-        const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: mimeType });
-        const blobUrl = URL.createObjectURL(blob);
-        
-        const newWindow = window.open(blobUrl, '_blank');
-        if (!newWindow) {
-          toast.error("Please allow popups to view documents");
-        }
-        
-        // Clean up after 1 minute
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-      } catch (error) {
-        console.error("Error opening document:", error);
-        toast.error("Failed to open document");
-      }
-    } else {
-      // For regular URLs
-      const newWindow = window.open(url, '_blank');
-      if (!newWindow) {
-        toast.error("Please allow popups to view documents");
-      }
-    }
-  };
-
-  const downloadDocument = async (url: string, filename: string) => {
-    if (!url) {
-      toast.error("Document not available");
-      return;
-    }
-
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('Failed to fetch document');
-      }
-      
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(blobUrl);
-      document.body.removeChild(a);
-      
-      toast.success("Document downloaded");
-    } catch (error) {
-      console.error("Error downloading document:", error);
-      toast.error("Failed to download document");
-    }
-  };
-
-  function openEditDialog() {
-    setEditForm({
-      contactEmail: hospitalProfile?.coordinatorEmail || hospitalProfile?.email || "",
-      contactPhone: hospitalProfile?.contactNumber || hospitalProfile?.phoneNumber || "",
-      address: hospitalProfile?.address || "",
-      city: hospitalProfile?.city || "",
-      state: hospitalProfile?.state || "",
-      pincode: hospitalProfile?.pincode || "",
-    });
-    setIsEditDialogOpen(true);
-  }
-
-  async function handleEditSubmit() {
-    try {
-      const response = await fetch("/api/profile/edit", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
-      });
-
-      if (response.ok) {
-        toast.success("Profile updated successfully");
-        setIsEditDialogOpen(false);
-        fetchDashboardData();
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to update profile");
-      }
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      toast.error("Failed to update profile");
-    }
-  }
-
-  async function handleDeleteProfile() {
-    setIsDeleting(true);
-    try {
-      const response = await fetch("/api/profile/delete", {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        toast.success("Profile deleted successfully");
-        await signOut({ callbackUrl: "/auth/signin" });
-      } else {
-        throw new Error("Failed to delete profile");
-      }
-    } catch (error) {
-      console.error("Error deleting profile:", error);
-      toast.error("Failed to delete profile");
-    } finally {
-      setIsDeleting(false);
-    }
-  }
-
-  async function loadMatchDetails(matchId: string) {
-    try {
-      const response = await fetch(`/api/hospital/approve-match?matchId=${matchId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setSelectedMatch(data.match);
-        setMatchDetailsDialog(true);
-      } else {
-        toast.error("Failed to load match details");
-      }
-    } catch (error) {
-      toast.error("Failed to load match details");
-    }
-  }
-
-  async function handleApproveMatch(matchId: string, approved: boolean) {
-    setApprovingMatch(matchId);
-    try {
-      const response = await fetch("/api/hospital/approve-match", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          matchId,
-          approved,
-          notes: approvalNotes,
-        }),
-      });
-
-      if (response.ok) {
-        toast.success(approved ? "Match approved successfully!" : "Match rejected");
-        setMatchDetailsDialog(false);
-        setApprovalNotes("");
-        fetchDashboardData();
-        // Trigger refresh on donor/recipient dashboards via localStorage event
-        localStorage.setItem('organease-refresh', Date.now().toString());
-        // Also trigger custom event for same-tab updates
-        window.dispatchEvent(new CustomEvent('organease-refresh'));
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to update match");
-      }
-    } catch (error) {
-      toast.error("An error occurred");
-    } finally {
-      setApprovingMatch(null);
-    }
-  }
-
-  async function handleSchedule(matchId: string) {
-    setSchedulingMatch(matchId);
-    try {
-      const response = await fetch("/api/matches/schedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          matchId,
-          type: scheduleType,
-          date: scheduleDate,
-        }),
-      });
-
-      if (response.ok) {
-        toast.success(`${scheduleType === "test" ? "Test" : "Procedure"} scheduled successfully!`);
-        setScheduleDate("");
-        fetchDashboardData();
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to schedule");
-      }
-    } catch (error) {
-      toast.error("An error occurred");
-    } finally {
-      setSchedulingMatch(null);
-    }
-  }
-
-  async function handleCompleteMatch(matchId: string) {
-    try {
-      const response = await fetch("/api/matches/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId }),
-      });
-
-      if (response.ok) {
-        toast.success("Match marked as completed!");
-        fetchDashboardData();
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to complete match");
-      }
-    } catch (error) {
-      toast.error("An error occurred");
-    }
-  }
+  const [selectedProfileType, setSelectedProfileType] = useState<"donor" | "recipient">("donor");
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [matchResults, setMatchResults] = useState<any[]>([]);
+  const [findingMatches, setFindingMatches] = useState(false);
+  const [selectedMatchDetails, setSelectedMatchDetails] = useState<any>(null);
 
   useEffect(() => {
-    const checkSession = async () => {
-      const res = await fetch("/api/auth/session");
-      const data = await res.json();
-      setCurrentRole(data?.user?.role || "");
-    };
-    checkSession();
-    fetchDashboardData();
-  }, []);
+    if (status === "unauthenticated") router.push("/auth/signin");
+  }, [status, router]);
 
-  const [creatingMatches, setCreatingMatches] = useState(false);
-  const [fixingMatches, setFixingMatches] = useState(false);
+  useEffect(() => {
+    if (session?.user) fetchDashboardData();
+  }, [session]);
 
-  const handleCreateAllMatches = async () => {
-    setCreatingMatches(true);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (session?.user) fetchDashboardData();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [session]);
+
+  async function fetchDashboardData() {
     try {
-      const response = await fetch("/api/matches/create-all");
-      const data = await response.json();
-      
-      if (data.success) {
-        toast.success(`Successfully created ${data.created} match(es) for ${data.totalRecipients} verified recipient(s)`);
-        fetchDashboardData(); // Refresh to show new matches
-      } else {
-        toast.error(data.error || "Failed to create matches");
+      // Fetch hospital profile first
+      const profileRes = await fetch("/api/profile?role=hospital");
+      if (!profileRes.ok) {
+        const err = await profileRes.json().catch(() => ({}));
+        if (!hospitalProfile) {
+          router.push("/onboarding/hospital");
+        }
+        setLoading(false);
+        return;
+      }
+
+      const profileData = await profileRes.json();
+      if (!profileData?.id || !profileData?.hospitalName) {
+        router.push("/onboarding/hospital");
+        return;
+      }
+      setHospitalProfile(profileData);
+
+      // Fetch hospital stats and data
+      const statsRes = await fetch("/api/hospital/stats");
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setDonors(statsData.donors || []);
+        setRecipients(statsData.recipients || []);
+        setActiveMatches(statsData.matches || []);
+        setStats({
+          totalDonors: statsData.donors?.length || 0,
+          totalRecipients: statsData.recipients?.length || 0,
+          pendingReview: (statsData.donors || []).filter((d: any) => !d.documentsVerified).length +
+                        (statsData.recipients || []).filter((r: any) => !r.documentsVerified).length,
+          activeMatches: statsData.matches?.length || 0,
+          completedProcedures: (statsData.matches || []).filter((m: any) => m.completedAt).length,
+        });
       }
     } catch (error) {
-      console.error("Error creating matches:", error);
-      toast.error("Failed to create matches");
-    } finally {
-      setCreatingMatches(false);
-    }
-  };
-
-  const handleFixMatchHospitals = async () => {
-    setFixingMatches(true);
-    try {
-      const response = await fetch("/api/matches/fix-hospitals", {
-        method: "POST",
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        toast.success(`Fixed ${data.updated} match(es)! ${data.skipped} skipped.`);
-        fetchDashboardData(); // Refresh to show matches
-      } else {
-        toast.error(data.error || "Failed to fix matches");
-      }
-    } catch (error) {
-      console.error("Error fixing matches:", error);
-      toast.error("Failed to fix matches");
-    } finally {
-      setFixingMatches(false);
-    }
-  };
-
-  const fetchDashboardData = async () => {
-    try {
-      const [hospitalRes, verificationsRes, matchesRes, statsRes] = await Promise.all([
-        fetch("/api/profile?role=hospital", { credentials: 'include' }),
-        fetch("/api/hospital/verifications", { credentials: 'include' }),
-        fetch("/api/matches?role=hospital", { credentials: 'include' }),
-        fetch("/api/hospital/stats", { credentials: 'include' }),
-      ]);
-
-      const hospitalData = await hospitalRes.json();
-      const verificationsData = await verificationsRes.json();
-      const matchesData = await matchesRes.json();
-      const statsData = await statsRes.json();
-
-      console.log("Hospital Dashboard Data:", { 
-        hospital: hospitalData, 
-        verifications: verificationsData, 
-        matches: matchesData, 
-        stats: statsData 
-      });
-
-      // If API returned an error, show it instead of blindly redirecting
-      if (hospitalData?.error) {
-        console.warn('Hospital profile API returned error:', hospitalData);
-        toast.error(hospitalData.message || hospitalData.error || 'Failed to load hospital profile');
-        // Do not redirect automatically; user may be authenticated differently in this browser
-      } else if (!hospitalData || (!hospitalData.id && !hospitalData.userId && !hospitalData.hospitalName)) {
-        console.warn('Hospital profile empty or missing expected fields:', hospitalData);
-        toast.info('Please complete hospital registration first');
-        // Keep user on dashboard so developer can inspect logs; navigate to onboarding only if user confirms
-        // router.push("/onboarding/hospital");
-      } else {
-        setHospitalProfile(hospitalData);
-      }
-      // Normalize pending verifications
-      const pending = Array.isArray(verificationsData?.pending) ? verificationsData.pending : [];
-      setPendingVerifications(pending);
-
-      // Normalize matches response (some endpoints return array or { matches: [...] })
-      const matchesList = Array.isArray(matchesData) ? matchesData : (matchesData?.matches || []);
-      setActiveMatches(matchesList);
-
-      // Use stats from stats endpoint but override pendingReview with actual pending list length for consistency
-      const normalizedStats = { ...(statsData || stats) };
-      normalizedStats.pendingReview = pending.length;
-      setStats(normalizedStats);
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-      toast.error("Failed to load dashboard data");
+      console.error("Error:", error);
+      toast.error("Failed to load dashboard");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const handleVerification = async (profileId: string, profileType: string, action: "approve" | "reject", reason?: string) => {
+  async function handleVerifyProfile(profileId: string, profileType: "donor" | "recipient", action: "approve" | "reject") {
+    setVerifyingId(profileId);
     try {
-      const response = await fetch("/api/hospital/verifications", {
+      const res = await fetch("/api/hospital/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profileId,
-          profileType,
-          action,
-          reason,
-        }),
+        body: JSON.stringify({ profileId, profileType, action }),
       });
-
-      if (!response.ok) throw new Error("Verification failed");
-
-      toast.success(`Profile ${action}d successfully`);
-      fetchDashboardData(); // Refresh data
-      setSelectedProfile(null);
-    } catch (error) {
-      console.error("Verification error:", error);
-      toast.error(`Failed to ${action} profile`);
-    }
-  };
-
-  const generateConsentPDF = async (matchId: string) => {
-    try {
-      toast.info("Generating PDF...");
-      const response = await fetch(`/api/pdf/consent?matchId=${matchId}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "PDF generation failed");
-      }
-      
-      const data = await response.json();
-      
-      if (data.pdfUrl) {
-        // Open the PDF URL in a new tab
-        window.open(data.pdfUrl, '_blank');
-        toast.success("Consent PDF opened in new tab");
+      if (res.ok) {
+        toast.success(`Profile ${action}d`);
+        fetchDashboardData();
+        setSelectedProfile(null);
       } else {
-        throw new Error("PDF URL not received");
+        const data = await res.json();
+        toast.error(data.error || "Action failed");
       }
-    } catch (error) {
-      console.error("PDF generation error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate PDF");
-    }
-  };
+    } catch { toast.error("Failed"); }
+    finally { setVerifyingId(null); }
+  }
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      approved: "bg-green-100 text-green-800",
-      rejected: "bg-red-100 text-red-800",
-      verified: "bg-blue-100 text-blue-800",
-    };
-    return colors[status] || "bg-gray-100 text-gray-800";
-  };
+  async function handleApproveMatch(matchId: string) {
+    try {
+      const res = await fetch("/api/matches", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId, action: "approve", role: "hospital" }),
+      });
+      if (res.ok) {
+        toast.success("Match approved");
+        fetchDashboardData();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed");
+      }
+    } catch { toast.error("Failed to approve match"); }
+  }
+
+  async function handleSchedule(matchId: string, type: "test" | "procedure", date: string) {
+    try {
+      const res = await fetch("/api/matches", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId, action: `schedule-${type}`, date }),
+      });
+      if (res.ok) {
+        toast.success(`${type === "test" ? "Test" : "Procedure"} scheduled`);
+        fetchDashboardData();
+      }
+    } catch { toast.error("Failed to schedule"); }
+  }
+
+  async function handleFindMatches() {
+    setFindingMatches(true);
+    try {
+      const res = await fetch("/api/matches/find", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setMatchResults(data.results || []);
+        setShowMatchModal(true);
+        if (data.results?.length > 0) {
+          toast.success(`Found ${data.results.length} potential matches`);
+        } else {
+          toast.info("No new matches found");
+        }
+        fetchDashboardData();
+      }
+    } catch { toast.error("Failed to run matching"); }
+    finally { setFindingMatches(false); }
+  }
+
+  const pendingDonors = donors.filter(d => !d.documentsVerified);
+  const verifiedDonors = donors.filter(d => d.documentsVerified);
+  const pendingRecipients = recipients.filter(r => !r.documentsVerified);
+  const verifiedRecipients = recipients.filter(r => r.documentsVerified);
+
+  const navItems = [
+    { label: "Overview", href: "/dashboard/hospital", icon: <BarChart3 className="h-4 w-4" /> },
+    { label: "Donors", href: "/dashboard/hospital", icon: <Heart className="h-4 w-4" />, badge: pendingDonors.length },
+    { label: "Recipients", href: "/dashboard/hospital", icon: <Users className="h-4 w-4" />, badge: pendingRecipients.length },
+    { label: "Matches", href: "/dashboard/hospital", icon: <TrendingUp className="h-4 w-4" /> },
+    { label: "Documents", href: "/dashboard/hospital", icon: <FileText className="h-4 w-4" /> },
+    { label: "Communication", href: "/dashboard/hospital", icon: <MessageSquare className="h-4 w-4" /> },
+  ];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <Activity className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading hospital dashboard...</p>
+      <DashboardLayout role="hospital" userName={hospitalProfile?.hospitalName || "Hospital"} userEmail={(session?.user as any)?.email} navItems={navItems}>
+        <div className="flex items-center justify-center h-64">
+          <Activity className="h-8 w-8 animate-spin text-blue-600" />
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-indigo-50">
+    <DashboardLayout
+      role="hospital"
+      userName={hospitalProfile?.hospitalName || "Hospital"}
+      userEmail={(session?.user as any)?.email || ""}
+      navItems={navItems}
+    >
       {/* Header */}
-      <div className="bg-white border-b shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <Building2 className="h-10 w-10 text-blue-600" />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">OrganEase - Hospital Admin</h1>
-                <p className="text-sm text-gray-600">Manage verifications and procedures</p>
-              </div>
-            </div>
-            
-            {/* Profile Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
-                      {hospitalProfile?.hospitalName?.[0]?.toUpperCase() || 'H'}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{hospitalProfile?.hospitalName}</p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                      {hospitalProfile?.coordinatorEmail}
-                    </p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/auth/signin" })}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{hospitalProfile?.hospitalName || "Hospital Dashboard"}</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {hospitalProfile?.city}, {hospitalProfile?.state} • Code: <span className="font-mono text-blue-600">{hospitalProfile?.hospitalCode || "—"}</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge className={hospitalProfile?.verificationStatus === "verified" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
+            {hospitalProfile?.verificationStatus || "pending"}
+          </Badge>
+          <Button onClick={handleFindMatches} disabled={findingMatches} className="bg-blue-600 hover:bg-blue-700">
+            <Zap className="h-4 w-4 mr-1" /> Find Matches
+          </Button>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-
-        {/* Verification banner for unverified hospitals */}
-        {hospitalProfile && !hospitalProfile.verified && (
-          <div className="mb-6 p-4 rounded-md bg-yellow-50 border-l-4 border-l-yellow-400">
-            <div className="flex items-center justify-between">
+      {/* Hospital not verified warning */}
+      {hospitalProfile?.verificationStatus !== "verified" && (
+        <Card className="mb-6 border-yellow-300 bg-yellow-50">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-yellow-800">Action required: Verify your hospital email</p>
-                <p className="text-sm text-yellow-700">Your account is not yet verified. Verify your hospital email to unlock full access to donor/recipient contact details and reporting.</p>
+                <p className="font-medium text-yellow-800">Hospital Verification Pending</p>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Your hospital is awaiting admin verification. Some features may be limited until verification is complete.
+                </p>
               </div>
             </div>
-          </div>
-        )}
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Hospital Code Quick Reference */}
-        {hospitalProfile?.hospitalCode && (
-          <div className="mb-6 p-3 rounded-lg bg-blue-50 border border-blue-200 flex items-center gap-3">
-            <Shield className="h-5 w-5 text-blue-500 shrink-0" />
-            <span className="text-sm text-blue-700">Your hospital code:</span>
-            <span className="font-mono font-bold text-blue-900 text-base">{hospitalProfile.hospitalCode}</span>
-            <span className="text-xs text-blue-500">— share this with recipients during signup</span>
-          </div>
-        )}
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <Card className="border-l-4 border-l-blue-500">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Donors</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalDonors}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-green-500">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Recipients</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalRecipients}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-yellow-500">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pending Review</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.pendingReview}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-purple-500">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Active Matches</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.activeMatches}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Completed</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.completedProcedures}</p>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card className="border-l-4 border-l-green-500">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-1">Total Verified</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.totalVerified}</p>
-                </div>
-                <CheckCircle className="h-10 w-10 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="bg-white shadow-sm">
+          <TabsTrigger value="overview" className="px-3">Overview</TabsTrigger>
+          <TabsTrigger value="donors" className="px-3">Donors ({donors.length})</TabsTrigger>
+          <TabsTrigger value="recipients" className="px-3">Recipients ({recipients.length})</TabsTrigger>
+          <TabsTrigger value="matches" className="px-3">Matches ({activeMatches.length})</TabsTrigger>
+          <TabsTrigger value="communication" className="px-3">Communication</TabsTrigger>
+        </TabsList>
 
-          <Card className="border-l-4 border-l-yellow-500">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-1">Pending Review</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.pendingReview}</p>
-                </div>
-                <Clock className="h-10 w-10 text-yellow-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Active Matches</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{stats.activeMatches}</p>
-                </div>
-                <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center">
-                  <Heart className="h-6 w-6 text-purple-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Completed</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{stats.completedProcedures}</p>
-                </div>
-                <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content */}
-        <Tabs defaultValue="verifications" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="verifications">
-              Pending Verifications ({pendingVerifications.length})
-            </TabsTrigger>
-            <TabsTrigger value="matches">Active Matches ({activeMatches.length})</TabsTrigger>
-            <TabsTrigger value="profile">Hospital Profile</TabsTrigger>
-            {/* Reports tab removed per request */}
-          </TabsList>
-
-          {/* Verifications Tab */}
-          <TabsContent value="verifications" className="space-y-4">
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-4">
+          {/* Pending verifications */}
+          {(pendingDonors.length > 0 || pendingRecipients.length > 0) && (
             <Card>
               <CardHeader>
-                <CardTitle>Profiles Awaiting Verification</CardTitle>
-                <CardDescription>
-                  Review and verify donor/recipient profiles and medical documents
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {pendingVerifications.length > 0 ? (
-                  <div className="space-y-4">
-                    {pendingVerifications.map((profile) => (
-                      <Card key={profile.id} className="border-2">
-                        <CardContent className="pt-6">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-4 flex-1">
-                              <Avatar className="h-12 w-12">
-                                <AvatarFallback className={profile.type === "donor" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}>
-                                  {profile.fullName?.[0] || profile.type[0].toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <h3 className="font-semibold">{profile.fullName}</h3>
-                                  <Badge variant={profile.type === "donor" ? "default" : "destructive"}>
-                                    {profile.type}
-                                  </Badge>
-                                  <Badge className={getStatusColor(profile.verificationStatus)}>
-                                    {profile.verificationStatus}
-                                  </Badge>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
-                                  <div className="flex items-center gap-1">
-                                    <Activity className="h-3 w-3" />
-                                    Blood: {profile.bloodGroup}
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <Heart className="h-3 w-3" />
-                                    {profile.type === "donor" ? "Organs:" : "Needs:"} {
-                                      profile.type === "donor" 
-                                        ? (Array.isArray(profile.organs) ? profile.organs.join(", ") : profile.organs) || "N/A"
-                                        : profile.requiredOrgan || "N/A"
-                                    }
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <Calendar className="h-3 w-3" />
-                                    Submitted: {new Date(profile.createdAt).toLocaleDateString()}
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <FileText className="h-3 w-3" />
-                                    Documents: {
-                                      profile.type === "donor" 
-                                        ? [profile.aadhaarUrl, profile.medicalCertificateUrl].filter(Boolean).length
-                                        : [profile.hospitalLetterUrl, profile.medicalReportUrl].filter(Boolean).length
-                                    } uploaded
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => setSelectedProfile(profile)}
-                              >
-                                <Eye className="h-4 w-4 mr-1" />
-                                Review
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="default"
-                                className="bg-green-600 hover:bg-green-700"
-                                onClick={() => handleVerification(profile.id, profile.type, "approve")}
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => {
-                                  const reason = prompt("Reason for rejection:");
-                                  if (reason) handleVerification(profile.id, profile.type, "reject", reason);
-                                }}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                Reject
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <CheckCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Pending Verifications</h3>
-                    <p className="text-gray-600 mb-4">
-                      There are currently no donor or recipient profiles awaiting verification.
-                    </p>
-                    <div className="text-sm text-gray-500 space-y-1">
-                      <p>✓ All submitted profiles have been reviewed</p>
-                      <p>✓ New submissions will appear here automatically</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Profile Review Modal */}
-            {selectedProfile && (
-              <Card className="border-4 border-blue-500">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Profile Review: {selectedProfile.fullName}</CardTitle>
-                    <Button variant="ghost" onClick={() => setSelectedProfile(null)}>
-                      ✕ Close
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <h4 className="font-semibold mb-2">Personal Information</h4>
-                      <div className="space-y-1 text-sm">
-                        <p><strong>Name:</strong> {selectedProfile.fullName}</p>
-                        <p><strong>Age:</strong> {selectedProfile.age} years</p>
-                        <p><strong>Blood Group:</strong> {selectedProfile.bloodGroup}</p>
-                        <p><strong>Email:</strong> {selectedProfile.email}</p>
-                        <p><strong>Location:</strong> {selectedProfile.city}, {selectedProfile.state}</p>
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold mb-2">Medical Information</h4>
-                      <div className="space-y-1 text-sm">
-                        {selectedProfile.type === "donor" ? (
-                          <>
-                            <p><strong>Organs:</strong> {Array.isArray(selectedProfile.organs) ? selectedProfile.organs.join(", ") : selectedProfile.organs || "N/A"}</p>
-                            <p><strong>Status:</strong> {selectedProfile.documentsVerified ? "Verified" : "Pending"}</p>
-                          </>
-                        ) : (
-                          <>
-                            <p><strong>Organ Needed:</strong> {selectedProfile.requiredOrgan}</p>
-                            <p><strong>Priority:</strong> {selectedProfile.priority || "Medium"}</p>
-                            <p><strong>Request Status:</strong> {selectedProfile.requestStatus || "Pending"}</p>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="font-semibold mb-2">Uploaded Documents</h4>
-                    <div className="space-y-2">
-                      {selectedProfile.aadhaarUrl && (
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => viewDocument(selectedProfile.aadhaarUrl, "Aadhaar_Card.pdf")}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Aadhaar Card
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => downloadDocument(selectedProfile.aadhaarUrl, "Aadhaar_Card.pdf")}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                      {selectedProfile.medicalCertificateUrl && (
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => viewDocument(selectedProfile.medicalCertificateUrl, "Medical_Certificate.pdf")}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Medical Certificate
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => downloadDocument(selectedProfile.medicalCertificateUrl, "Medical_Certificate.pdf")}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                      {selectedProfile.hospitalLetterUrl && (
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => viewDocument(selectedProfile.hospitalLetterUrl, "Hospital_Letter.pdf")}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Hospital Letter
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => downloadDocument(selectedProfile.hospitalLetterUrl, "Hospital_Letter.pdf")}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                      {selectedProfile.medicalReportUrl && (
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => viewDocument(selectedProfile.medicalReportUrl, "Medical_Report.pdf")}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Medical Report
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => downloadDocument(selectedProfile.medicalReportUrl, "Medical_Report.pdf")}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                      {selectedProfile.insuranceCardUrl && (
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => viewDocument(selectedProfile.insuranceCardUrl, "Insurance_Card.pdf")}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Insurance Card
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => downloadDocument(selectedProfile.insuranceCardUrl, "Insurance_Card.pdf")}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                      {selectedProfile.governmentIdUrl && (
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => viewDocument(selectedProfile.governmentIdUrl, "Government_ID.pdf")}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Government ID
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => downloadDocument(selectedProfile.governmentIdUrl, "Government_ID.pdf")}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    {!selectedProfile.aadhaarUrl && !selectedProfile.medicalCertificateUrl && 
-                     !selectedProfile.hospitalLetterUrl && !selectedProfile.medicalReportUrl &&
-                     !selectedProfile.insuranceCardUrl && !selectedProfile.governmentIdUrl && (
-                      <p className="text-sm text-gray-500 mt-2">No documents uploaded yet</p>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button 
-                      className="flex-1 bg-green-600 hover:bg-green-700"
-                      onClick={() => handleVerification(selectedProfile.id, selectedProfile.type, "approve")}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Approve Profile
-                    </Button>
-                    <Button
-                      className="flex-1"
-                      variant="destructive"
-                      onClick={() => {
-                        const reason = prompt("Reason for rejection:");
-                        if (reason) handleVerification(selectedProfile.id, selectedProfile.type, "reject", reason);
-                      }}
-                    >
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Reject Profile
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Matches Tab */}
-          <TabsContent value="matches" className="space-y-4">
-            {activeMatches.length === 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>No Active Matches</CardTitle>
-                  <CardDescription>
-                    Create matches for verified recipients and donors
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button 
-                    onClick={handleCreateAllMatches}
-                    disabled={creatingMatches}
-                    className="w-full"
-                  >
-                    {creatingMatches ? "Creating Matches..." : "Create Matches for Verified Profiles"}
-                  </Button>
-                  <Button 
-                    onClick={handleFixMatchHospitals}
-                    disabled={fixingMatches}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {fixingMatches ? "Fixing Matches..." : "Fix Existing Matches (Assign Hospital)"}
-                  </Button>
-                  <p className="text-sm text-gray-500 mt-2 text-center">
-                    This will automatically create match records for all verified recipients with compatible verified donors
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-            <Card>
-              <CardHeader>
-                <CardTitle>Active Donor-Recipient Matches</CardTitle>
-                <CardDescription>Monitor and manage approved matches</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {activeMatches.length > 0 ? (
-                  <div className="space-y-4">
-                    {activeMatches.map((match) => (
-                      <Card key={match.id} className="border-2">
-                        <CardContent className="pt-6">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-4 mb-4">
-                                <div className="text-center">
-                                  <Avatar className="h-12 w-12 mx-auto mb-1">
-                                    <AvatarFallback className="bg-green-100 text-green-600">D</AvatarFallback>
-                                  </Avatar>
-                                  <p className="text-xs text-gray-600">Donor</p>
-                                </div>
-                                <div className="flex-1 border-t-2 border-dashed relative">
-                                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white px-2">
-                                    <Heart className="h-5 w-5 text-red-600" />
-                                  </div>
-                                </div>
-                                <div className="text-center">
-                                  <Avatar className="h-12 w-12 mx-auto mb-1">
-                                    <AvatarFallback className="bg-red-100 text-red-600">R</AvatarFallback>
-                                  </Avatar>
-                                  <p className="text-xs text-gray-600">Recipient</p>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-3 gap-4 text-sm">
-                                <div>
-                                  <p className="font-medium">Match Score</p>
-                                  <p className="text-gray-600">{match.score}%</p>
-                                </div>
-                                <div>
-                                  <p className="font-medium">Status</p>
-                                  <Badge className={getStatusColor(match.status || "pending")}>
-                                    {match.status || "pending"}
-                                  </Badge>
-                                </div>
-                                <div>
-                                  <p className="font-medium">Matched On</p>
-                                  <p className="text-gray-600">{new Date(match.matchedAt || match.createdAt).toLocaleDateString()}</p>
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap gap-2 mt-3">
-                                {match.approvedByHospital && (
-                                  <Badge className="bg-green-100 text-green-800 text-xs">
-                                    Hospital Approved
-                                  </Badge>
-                                )}
-                                {match.donorAccepted && (
-                                  <Badge className="bg-blue-100 text-blue-800 text-xs">
-                                    Donor Accepted
-                                  </Badge>
-                                )}
-                                {match.recipientAccepted && (
-                                  <Badge className="bg-purple-100 text-purple-800 text-xs">
-                                    Recipient Accepted
-                                  </Badge>
-                                )}
-                                {match.testScheduledDate && (
-                                  <Badge className="bg-orange-100 text-orange-800 text-xs">
-                                    Test Scheduled: {new Date(match.testScheduledDate).toLocaleDateString()}
-                                  </Badge>
-                                )}
-                                {match.procedureScheduledDate && (
-                                  <Badge className="bg-indigo-100 text-indigo-800 text-xs">
-                                    Procedure: {new Date(match.procedureScheduledDate).toLocaleDateString()}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex flex-col gap-2 ml-4">
-                              <Button size="sm" variant="outline" onClick={() => loadMatchDetails(match.id)}>
-                                <Eye className="h-4 w-4 mr-1" />
-                                View Full Details
-                              </Button>
-                              
-                              {match.donorAccepted && match.recipientAccepted && !match.testScheduledDate && (
-                                <Button size="sm" onClick={() => {
-                                  setCurrentMatch(match);
-                                  setSchedulingMatch(match.id);
-                                  setScheduleType("test");
-                                  setScheduleDate("");
-                                }}>
-                                  Schedule Test
-                                </Button>
-                              )}
-                              
-                              {match.testScheduledDate && !match.procedureScheduledDate && (
-                                <Button size="sm" onClick={() => {
-                                  setCurrentMatch(match);
-                                  setSchedulingMatch(match.id);
-                                  setScheduleType("procedure");
-                                  setScheduleDate("");
-                                }}>
-                                  Schedule Procedure
-                                </Button>
-                              )}
-                              
-                              {match.procedureScheduledDate && match.status !== "completed" && (
-                                <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleCompleteMatch(match.id)}>
-                                  Mark Complete
-                                </Button>
-                              )}
-                              
-                              <Button 
-                                size="sm"
-                                variant="outline"
-                                onClick={() => generateConsentPDF(match.id)}
-                              >
-                                <Download className="h-4 w-4 mr-1" />
-                                Get PDF
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <Heart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No active matches</h3>
-                    <p className="text-gray-600">Verified profiles will be automatically matched.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Profile Tab */}
-          <TabsContent value="profile">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-blue-600" />
-                  Hospital Profile
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-yellow-500" /> Pending Verifications
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {hospitalProfile ? (
-                  <div className="space-y-6">
-                    {/* Hospital Code Banner */}
-                    {hospitalProfile.hospitalCode && (
-                      <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div>
-                          <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide mb-1">Your Hospital Code</p>
-                          <p className="text-2xl font-mono font-bold text-blue-800">{hospitalProfile.hospitalCode}</p>
-                          <p className="text-xs text-blue-600 mt-1">Share this code with recipients during their signup so they are linked to your hospital</p>
-                        </div>
-                        <Shield className="h-10 w-10 text-blue-400 shrink-0" />
-                      </div>
-                    )}
-                    {/* Hospital Details Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  {pendingDonors.slice(0, 3).map((d: any) => (
+                    <div key={d.id} className="flex items-center justify-between border rounded-lg p-3">
                       <div>
-                        <div className="space-y-3 text-sm">
-                          <div>
-                            <p className="text-gray-600 text-xs mb-1">Hospital Name</p>
-                            <p className="font-medium">{hospitalProfile.hospitalName || "N/A"}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-600 text-xs mb-1">Registration Number</p>
-                            <p className="font-medium">{hospitalProfile.registrationNumber || "N/A"}</p>
-                          </div>
-                          {hospitalProfile.accreditation && (
-                            <div>
-                              <p className="text-gray-600 text-xs mb-1">Accreditation</p>
-                              <p className="font-medium">{hospitalProfile.accreditation}</p>
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-gray-600 text-xs mb-1">Contact Email</p>
-                            <p className="font-medium">{hospitalProfile.coordinatorEmail || hospitalProfile.email || "N/A"}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-600 text-xs mb-1">Contact Phone</p>
-                            <p className="font-medium">{hospitalProfile.contactNumber || hospitalProfile.phoneNumber || "N/A"}</p>
-                          </div>
-                          {(hospitalProfile.address || hospitalProfile.city || hospitalProfile.state) && (
-                            <div>
-                              <p className="text-gray-600 text-xs mb-1">Location</p>
-                              <p className="font-medium">
-                                {[
-                                  hospitalProfile.address,
-                                  hospitalProfile.city,
-                                  hospitalProfile.state,
-                                  hospitalProfile.pincode
-                                ].filter(Boolean).join(", ") || "N/A"}
-                              </p>
-                            </div>
-                          )}
-                          {hospitalProfile.website && (
-                            <div>
-                              <p className="text-gray-600 text-xs mb-1">Website</p>
-                              <p className="font-medium">{hospitalProfile.website}</p>
-                            </div>
-                          )}
-                          {hospitalProfile.coordinatorName && (
-                            <div>
-                              <p className="text-gray-600 text-xs mb-1">Transplant Coordinator</p>
-                              <p className="font-medium">{hospitalProfile.coordinatorName}</p>
-                            </div>
-                          )}
-                        </div>
+                        <p className="font-medium text-sm">{d.fullName}</p>
+                        <p className="text-xs text-gray-500">Donor • {d.bloodGroup} • {d.city}</p>
                       </div>
-                      {(hospitalProfile.transplantDepartmentHead || 
-                        hospitalProfile.departmentPhone || 
-                        hospitalProfile.departmentEmail || 
-                        hospitalProfile.numberOfTransplantSurgeons || 
-                        hospitalProfile.transplantCapacity || 
-                        (hospitalProfile.specializations && hospitalProfile.specializations.length > 0)) ? (
-                        <div>
-                          <h3 className="font-semibold mb-4">Transplant Department</h3>
-                          <div className="space-y-3 text-sm">
-                            {hospitalProfile.transplantDepartmentHead && (
-                              <div>
-                                <p className="text-gray-600 text-xs mb-1">Department Head</p>
-                                <p className="font-medium">{hospitalProfile.transplantDepartmentHead}</p>
-                              </div>
-                            )}
-                            {hospitalProfile.departmentPhone && (
-                              <div>
-                                <p className="text-gray-600 text-xs mb-1">Department Phone</p>
-                                <p className="font-medium">{hospitalProfile.departmentPhone}</p>
-                              </div>
-                            )}
-                            {hospitalProfile.departmentEmail && (
-                              <div>
-                                <p className="text-gray-600 text-xs mb-1">Department Email</p>
-                                <p className="font-medium">{hospitalProfile.departmentEmail}</p>
-                              </div>
-                            )}
-                            {hospitalProfile.numberOfTransplantSurgeons && (
-                              <div>
-                                <p className="text-gray-600 text-xs mb-1">Number of Surgeons</p>
-                                <p className="font-medium">{hospitalProfile.numberOfTransplantSurgeons}</p>
-                              </div>
-                            )}
-                            {hospitalProfile.transplantCapacity && (
-                              <div>
-                                <p className="text-gray-600 text-xs mb-1">Annual Capacity</p>
-                                <p className="font-medium">{hospitalProfile.transplantCapacity} procedures/year</p>
-                              </div>
-                            )}
-                            {hospitalProfile.specializations && hospitalProfile.specializations.length > 0 && (
-                              <div>
-                                <p className="text-gray-600 text-xs mb-2">Specializations</p>
-                                <div className="flex flex-wrap gap-1">
-                                  {hospitalProfile.specializations.map((spec: string) => (
-                                    <Badge key={spec} variant="secondary" className="text-xs">{spec}</Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="flex gap-2 items-center pt-4 border-t">
-                      <Button variant="outline" className="flex-1" onClick={openEditDialog}>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit Profile
-                      </Button>
-                      <div className="flex-1 flex items-center justify-center">
-                        {hospitalProfile?.verified ? (
-                          <Badge className="bg-green-100 text-green-800">Verified</Badge>
-                        ) : (
-                          <Badge className="bg-yellow-100 text-yellow-800">Verification pending</Badge>
-                        )}
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => { setSelectedProfile(d); setSelectedProfileType("donor"); }}>
+                          <Eye className="h-3 w-3 mr-1" /> Review
+                        </Button>
                       </div>
-                      <Button variant="destructive" className="flex-1" onClick={() => setIsDeleteDialogOpen(true)}>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Profile
-                      </Button>
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 mb-4">No hospital profile found</p>
-                    <Button onClick={() => window.location.href = "/onboarding/hospital"}>
-                      Complete Hospital Registration
-                    </Button>
-                  </div>
-                )}
+                  ))}
+                  {pendingRecipients.slice(0, 3).map((r: any) => (
+                    <div key={r.id} className="flex items-center justify-between border rounded-lg p-3">
+                      <div>
+                        <p className="font-medium text-sm">{r.patientName}</p>
+                        <p className="text-xs text-gray-500">Recipient • {r.bloodGroup} • {r.requiredOrgan?.replace(/_/g, " ")}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => { setSelectedProfile(r); setSelectedProfileType("recipient"); }}>
+                          <Eye className="h-3 w-3 mr-1" /> Review
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          )}
 
-          {/* Reports tab removed per request */}
-        </Tabs>
-      </div>
-
-      {/* Edit Profile Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Hospital Profile</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="contactEmail">Contact Email</Label>
-              <Input
-                id="contactEmail"
-                type="email"
-                value={editForm.contactEmail || ""}
-                onChange={(e) => setEditForm({ ...editForm, contactEmail: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="contactPhone">Contact Phone</Label>
-              <Input
-                id="contactPhone"
-                value={editForm.contactPhone || ""}
-                onChange={(e) => setEditForm({ ...editForm, contactPhone: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="address">Address</Label>
-              <Input
-                id="address"
-                value={editForm.address || ""}
-                onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="city">City</Label>
-                <Input
-                  id="city"
-                  value={editForm.city || ""}
-                  onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="state">State</Label>
-                <Input
-                  id="state"
-                  value={editForm.state || ""}
-                  onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="pincode">Pincode</Label>
-              <Input
-                id="pincode"
-                value={editForm.pincode || ""}
-                onChange={(e) => setEditForm({ ...editForm, pincode: e.target.value })}
-              />
-            </div>
-            <div className="flex gap-2 pt-4">
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="flex-1">
-                Cancel
-              </Button>
-              <Button onClick={handleEditSubmit} className="flex-1">
-                Save Changes
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Profile Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-red-600">Delete Hospital Profile</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-sm text-red-800 font-medium mb-2">⚠️ Warning: This action cannot be undone!</p>
-              <p className="text-sm text-red-700">
-                Deleting your hospital profile will permanently remove:
-              </p>
-              <ul className="list-disc list-inside text-sm text-red-700 mt-2 space-y-1">
-                <li>All hospital information</li>
-                <li>Verification records</li>
-                <li>Match coordination history</li>
-                <li>Administrative access</li>
-              </ul>
-            </div>
-            <p className="text-sm text-gray-600">
-              Are you sure you want to delete this hospital profile?
-            </p>
-            <div className="flex gap-2 pt-4">
-              <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} className="flex-1" disabled={isDeleting}>
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={handleDeleteProfile} className="flex-1" disabled={isDeleting}>
-                {isDeleting ? "Deleting..." : "Delete Profile"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Match Details Dialog */}
-      <Dialog open={matchDetailsDialog} onOpenChange={setMatchDetailsDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Match Details & Approval</DialogTitle>
-          </DialogHeader>
-          {selectedMatch && (
-            <div className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Donor Information */}
-                <div className="border rounded-lg p-4 bg-green-50">
-                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                    <Heart className="h-5 w-5 text-green-600" />
-                    Donor Information
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm text-gray-600">Name</p>
-                      <p className="font-medium">{selectedMatch.donor?.fullName}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
+          {/* Recent matches */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-green-600" /> Recent Matches
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {activeMatches.length === 0 ? (
+                <div className="text-center py-8">
+                  <Heart className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No matches yet. Click "Find Matches" to run the matching engine.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {activeMatches.slice(0, 5).map((match: any) => (
+                    <div key={match.id} className="border rounded-lg p-3 flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600">Age</p>
-                        <p className="font-medium">{selectedMatch.donor?.age}</p>
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-blue-100 text-blue-800 text-xs">{match.organType?.replace(/_/g, " ")}</Badge>
+                          {match.matchScore && <Badge variant="outline" className="text-xs font-mono">{match.matchScore}%</Badge>}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {match.donor?.fullName || "Donor"} → {match.recipient?.patientName || "Recipient"}
+                        </p>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Blood Group</p>
-                        <p className="font-medium">{selectedMatch.donor?.bloodGroup}</p>
+                      <div className="flex gap-2">
+                        {!match.approvedByHospital && (
+                          <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveMatch(match.id)}>
+                            Approve
+                          </Button>
+                        )}
+                        <Button variant="outline" size="sm" onClick={() => setSelectedMatchDetails(match)}>
+                          Details
+                        </Button>
                       </div>
                     </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Location</p>
-                      <p className="font-medium">{selectedMatch.donor?.city}, {selectedMatch.donor?.state}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Contact</p>
-                      <p className="font-medium">{selectedMatch.donorUser?.email}</p>
-                      <p className="font-medium">{selectedMatch.donorUser?.phone || "N/A"}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Available Organs</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {selectedMatch.donor?.organs?.map((organ: string) => (
-                          <Badge key={organ} variant="secondary" className="text-xs">
-                            {organ.replace(/_/g, " ")}
-                          </Badge>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Donors Tab */}
+        <TabsContent value="donors" className="space-y-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search donors..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
+          {/* Pending */}
+          {pendingDonors.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-yellow-500" /> Pending Verification ({pendingDonors.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {pendingDonors.filter(d => !searchQuery || d.fullName?.toLowerCase().includes(searchQuery.toLowerCase())).map((d: any) => (
+                  <div key={d.id} className="border rounded-lg p-3 bg-yellow-50/30 flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <p className="font-medium text-sm">{d.fullName}</p>
+                      <p className="text-xs text-gray-500">{d.bloodGroup} • Age: {d.age} • {d.city}, {d.state}</p>
+                      <div className="flex gap-1 mt-1">
+                        {(d.organs as string[])?.map((o: string) => (
+                          <Badge key={o} variant="outline" className="text-[10px]">{o.replace(/_/g, " ")}</Badge>
                         ))}
                       </div>
                     </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="bg-green-600 hover:bg-green-700"
+                        onClick={() => handleVerifyProfile(d.id, "donor", "approve")}
+                        disabled={verifyingId === d.id}>
+                        <CheckCircle className="h-3 w-3 mr-1" /> Approve
+                      </Button>
+                      <Button size="sm" variant="destructive"
+                        onClick={() => handleVerifyProfile(d.id, "donor", "reject")}
+                        disabled={verifyingId === d.id}>
+                        <XCircle className="h-3 w-3 mr-1" /> Reject
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
-                {/* Recipient Information */}
-                <div className="border rounded-lg p-4 bg-red-50">
-                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                    <User className="h-5 w-5 text-red-600" />
-                    Recipient Information
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm text-gray-600">Name</p>
-                      <p className="font-medium">{selectedMatch.recipient?.patientName}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
+          {/* Verified */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" /> Verified Donors ({verifiedDonors.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {verifiedDonors.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">No verified donors yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {verifiedDonors.filter(d => !searchQuery || d.fullName?.toLowerCase().includes(searchQuery.toLowerCase())).map((d: any) => (
+                    <div key={d.id} className="border rounded-lg p-3 flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600">Age</p>
-                        <p className="font-medium">{selectedMatch.recipient?.age}</p>
+                        <p className="font-medium text-sm">{d.fullName}</p>
+                        <p className="text-xs text-gray-500">{d.bloodGroup} • {(d.organs as string[])?.map((o: string) => o.replace(/_/g, " ")).join(", ")}</p>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Blood Group</p>
-                        <p className="font-medium">{selectedMatch.recipient?.bloodGroup}</p>
-                      </div>
+                      <Badge className="bg-green-100 text-green-800">Verified</Badge>
                     </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Recipients Tab */}
+        <TabsContent value="recipients" className="space-y-4">
+          {pendingRecipients.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-yellow-500" /> Pending Verification ({pendingRecipients.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {pendingRecipients.map((r: any) => (
+                  <div key={r.id} className="border rounded-lg p-3 bg-yellow-50/30 flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Location</p>
-                      <p className="font-medium">{selectedMatch.recipient?.city}, {selectedMatch.recipient?.state}</p>
+                      <p className="font-medium text-sm">{r.patientName}</p>
+                      <p className="text-xs text-gray-500">{r.bloodGroup} • {r.requiredOrgan?.replace(/_/g, " ")} • {r.priority} priority</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Contact</p>
-                      <p className="font-medium">{selectedMatch.recipientUser?.email}</p>
-                      <p className="font-medium">{selectedMatch.recipientUser?.phone || "N/A"}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Required Organ</p>
-                      <Badge variant="secondary" className="mt-1">
-                        {selectedMatch.recipient?.requiredOrgan?.replace(/_/g, " ")}
-                      </Badge>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Priority</p>
-                      <Badge variant={selectedMatch.recipient?.priority === "emergency" ? "destructive" : "default"} className="mt-1">
-                        {selectedMatch.recipient?.priority}
-                      </Badge>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="bg-green-600 hover:bg-green-700"
+                        onClick={() => handleVerifyProfile(r.id, "recipient", "approve")}
+                        disabled={verifyingId === r.id}>
+                        <CheckCircle className="h-3 w-3 mr-1" /> Approve
+                      </Button>
+                      <Button size="sm" variant="destructive"
+                        onClick={() => handleVerifyProfile(r.id, "recipient", "reject")}
+                        disabled={verifyingId === r.id}>
+                        <XCircle className="h-3 w-3 mr-1" /> Reject
+                      </Button>
                     </div>
                   </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" /> Verified Recipients ({verifiedRecipients.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {verifiedRecipients.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">No verified recipients yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {verifiedRecipients.map((r: any) => (
+                    <div key={r.id} className="border rounded-lg p-3 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-sm">{r.patientName}</p>
+                        <p className="text-xs text-gray-500">{r.bloodGroup} • {r.requiredOrgan?.replace(/_/g, " ")} • {r.priority}</p>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800">Verified</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Matches Tab */}
+        <TabsContent value="matches" className="space-y-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm text-gray-500">Matches within your hospital&apos;s pool only</p>
+            <Button onClick={handleFindMatches} disabled={findingMatches} size="sm">
+              <Zap className="h-4 w-4 mr-1" /> Run Matching
+            </Button>
+          </div>
+
+          {activeMatches.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Heart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No matches yet</p>
+                <p className="text-sm text-gray-400 mt-2">Run the matching engine to find compatible donors and recipients within your hospital.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            activeMatches.map((match: any) => (
+              <Card key={match.id}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-blue-100 text-blue-800">{match.organType?.replace(/_/g, " ")}</Badge>
+                        {match.matchScore && (
+                          <Badge variant="outline" className="font-mono text-sm">{match.matchScore}% compatibility</Badge>
+                        )}
+                        <Badge className={match.approvedByHospital ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
+                          {match.approvedByHospital ? "Approved" : "Pending Approval"}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 mt-2">
+                        <div className="border rounded-lg p-3 bg-blue-50/30">
+                          <p className="text-xs text-gray-500 font-medium mb-1">DONOR</p>
+                          <p className="text-sm font-semibold">{match.donor?.fullName || "—"}</p>
+                          <p className="text-xs text-gray-500">{match.donor?.bloodGroup} • {match.donor?.city}</p>
+                        </div>
+                        <div className="border rounded-lg p-3 bg-green-50/30">
+                          <p className="text-xs text-gray-500 font-medium mb-1">RECIPIENT</p>
+                          <p className="text-sm font-semibold">{match.recipient?.patientName || "—"}</p>
+                          <p className="text-xs text-gray-500">{match.recipient?.bloodGroup} • {match.recipient?.city}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                        <span>Donor: {match.donorAccepted ? "✅ Accepted" : "⏳ Pending"}</span>
+                        <span>Recipient: {match.recipientAccepted ? "✅ Accepted" : "⏳ Pending"}</span>
+                        {match.testScheduledDate && <span>Test: {new Date(match.testScheduledDate).toLocaleDateString()}</span>}
+                      </div>
+                      {match.aiMatchExplanation && (
+                        <div className="border rounded-lg p-2 bg-indigo-50/30 text-xs text-gray-600 mt-2">
+                          <p className="font-medium text-indigo-700 mb-0.5">AI Analysis</p>
+                          {match.aiMatchExplanation}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2 ml-4 min-w-[100px]">
+                      {!match.approvedByHospital && (
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 w-full" onClick={() => handleApproveMatch(match.id)}>
+                          Approve
+                        </Button>
+                      )}
+                      {match.approvedByHospital && match.donorAccepted && match.recipientAccepted && !match.testScheduledDate && (
+                        <Button size="sm" variant="outline" className="w-full"
+                          onClick={() => handleSchedule(match.id, "test", new Date(Date.now() + 7 * 86400000).toISOString())}>
+                          <Calendar className="h-3 w-3 mr-1" /> Schedule Test
+                        </Button>
+                      )}
+                      {match.testScheduledDate && !match.procedureScheduledDate && (
+                        <Button size="sm" variant="outline" className="w-full"
+                          onClick={() => handleSchedule(match.id, "procedure", new Date(Date.now() + 14 * 86400000).toISOString())}>
+                          <Calendar className="h-3 w-3 mr-1" /> Schedule Procedure
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        {/* Communication Tab */}
+        <TabsContent value="communication">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-blue-600" /> Messages
+              </CardTitle>
+              <CardDescription>
+                Communicate with registered donors and recipients. No direct donor-recipient messaging.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[...donors, ...recipients].length === 0 ? (
+                  <div className="text-center py-8">
+                    <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No registered users to message</p>
+                  </div>
+                ) : (
+                  [...donors.map(d => ({ ...d, type: "donor", name: d.fullName })),
+                   ...recipients.map(r => ({ ...r, type: "recipient", name: r.patientName }))]
+                  .map((person: any) => (
+                    <div key={person.id} className="border rounded-lg p-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${person.type === "donor" ? "bg-blue-100" : "bg-green-100"}`}>
+                          <User className={`h-4 w-4 ${person.type === "donor" ? "text-blue-600" : "text-green-600"}`} />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{person.name}</p>
+                          <p className="text-xs text-gray-500 capitalize">{person.type} • {person.bloodGroup}</p>
+                        </div>
+                      </div>
+                      <Button variant="outline" size="sm">
+                        <MessageSquare className="h-3 w-3 mr-1" /> Message
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Profile Review Dialog */}
+      <Dialog open={!!selectedProfile} onOpenChange={() => setSelectedProfile(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Profile Review — {selectedProfileType === "donor" ? "Donor" : "Recipient"}</DialogTitle>
+          </DialogHeader>
+          {selectedProfile && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500">Name</p>
+                  <p className="font-medium">{selectedProfile.fullName || selectedProfile.patientName}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Blood Group</p>
+                  <p className="font-medium">{selectedProfile.bloodGroup}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Age</p>
+                  <p className="font-medium">{selectedProfile.age}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Location</p>
+                  <p className="font-medium">{selectedProfile.city}, {selectedProfile.state}</p>
                 </div>
               </div>
 
-              {!selectedMatch.approvedByHospital && (
-                <div className="border-t pt-4">
-                  <Label htmlFor="notes" className="mb-2 block">Hospital Notes (Optional)</Label>
-                  <textarea
-                    id="notes"
-                    className="w-full min-h-25 p-3 border rounded-lg"
-                    placeholder="Add any notes about this match..."
-                    value={approvalNotes}
-                    onChange={(e) => setApprovalNotes(e.target.value)}
-                  />
-                  <div className="flex gap-3 mt-4">
-                    <Button
-                      className="flex-1 bg-green-600 hover:bg-green-700"
-                      onClick={() => handleApproveMatch(selectedMatch.id, true)}
-                      disabled={approvingMatch === selectedMatch.id}
-                    >
-                      {approvingMatch === selectedMatch.id ? "Approving..." : "Approve Match"}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      className="flex-1"
-                      onClick={() => handleApproveMatch(selectedMatch.id, false)}
-                      disabled={approvingMatch === selectedMatch.id}
-                    >
-                      Reject Match
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {/* Documents */}
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500 font-medium">Documents</p>
+                {selectedProfileType === "donor" ? (
+                  <>
+                    {selectedProfile.aadhaarUrl && <a href={selectedProfile.aadhaarUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline block">View Aadhaar</a>}
+                    {selectedProfile.medicalCertificateUrl && <a href={selectedProfile.medicalCertificateUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline block">View Medical Certificate</a>}
+                    {selectedProfile.bloodGroupReport && <a href={selectedProfile.bloodGroupReport} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline block">View Blood Group Report</a>}
+                  </>
+                ) : (
+                  <>
+                    {selectedProfile.hospitalLetterUrl && <a href={selectedProfile.hospitalLetterUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline block">View Hospital Letter</a>}
+                    {selectedProfile.medicalReportUrl && <a href={selectedProfile.medicalReportUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline block">View Medical Report</a>}
+                    {selectedProfile.insuranceCardUrl && <a href={selectedProfile.insuranceCardUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline block">View Insurance Card</a>}
+                    {selectedProfile.governmentIdUrl && <a href={selectedProfile.governmentIdUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline block">View Government ID</a>}
+                  </>
+                )}
+              </div>
 
-              {selectedMatch.approvedByHospital && (
-                <div className="border-t pt-4">
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <p className="font-semibold text-green-900">✓ Match Approved by Hospital</p>
-                    <p className="text-sm text-green-700 mt-1">
-                      Approved on: {new Date(selectedMatch.approvedAt).toLocaleDateString()}
-                    </p>
-                    {selectedMatch.hospitalNotes && (
-                      <p className="text-sm text-green-700 mt-2">
-                        Notes: {selectedMatch.hospitalNotes}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
+              <div className="flex gap-2 pt-2">
+                <Button className="flex-1 bg-green-600 hover:bg-green-700"
+                  onClick={() => handleVerifyProfile(selectedProfile.id, selectedProfileType, "approve")}
+                  disabled={verifyingId === selectedProfile.id}>
+                  <CheckCircle className="h-4 w-4 mr-1" /> Approve
+                </Button>
+                <Button variant="destructive" className="flex-1"
+                  onClick={() => handleVerifyProfile(selectedProfile.id, selectedProfileType, "reject")}
+                  disabled={verifyingId === selectedProfile.id}>
+                  <XCircle className="h-4 w-4 mr-1" /> Reject
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Scheduling Dialog */}
-      <Dialog open={schedulingMatch !== null} onOpenChange={() => {
-        setSchedulingMatch(null);
-        setCurrentMatch(null);
-        setScheduleDate("");
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Schedule {scheduleType === "test" ? "Medical Test" : "Transplant Procedure"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {scheduleType === "procedure" && currentMatch?.testScheduledDate && (
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm">
-                <p className="text-blue-800">
-                  <strong>Note:</strong> Test is scheduled for {new Date(currentMatch.testScheduledDate).toLocaleString()}
-                </p>
-                <p className="text-blue-700 mt-1">
-                  Procedure must be scheduled after the test date.
-                </p>
-              </div>
-            )}
-            <div>
-              <Label htmlFor="scheduleDate">Date and Time</Label>
-              <Input
-                id="scheduleDate"
-                type="datetime-local"
-                value={scheduleDate}
-                min={scheduleType === "procedure" && currentMatch?.testScheduledDate 
-                  ? new Date(currentMatch.testScheduledDate).toISOString().slice(0, 16)
-                  : new Date().toISOString().slice(0, 16)
-                }
-                onChange={(e) => setScheduleDate(e.target.value)}
-              />
-              {scheduleType === "procedure" && currentMatch?.testScheduledDate && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Minimum date: {new Date(currentMatch.testScheduledDate).toLocaleString()}
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => {
-                setSchedulingMatch(null);
-                setCurrentMatch(null);
-                setScheduleDate("");
-              }} className="flex-1">
-                Cancel
-              </Button>
-              <Button
-                onClick={() => schedulingMatch && handleSchedule(schedulingMatch)}
-                className="flex-1"
-                disabled={!scheduleDate}
-              >
-                Schedule
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+    </DashboardLayout>
   );
 }

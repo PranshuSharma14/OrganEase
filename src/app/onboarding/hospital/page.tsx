@@ -10,10 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Upload, Building2, FileText, Shield } from "lucide-react";
 import { toast } from "sonner";
-import { signIn } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 export default function HospitalOnboarding() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -106,37 +107,37 @@ export default function HospitalOnboarding() {
 
     setLoading(true);
     try {
-      // In production, upload files to cloud storage first
-      const documentUrls = {
-        hospitalLicense: formData.hospitalLicense?.name || "",
-        accreditationCertificate: formData.accreditationCertificate?.name || "",
-        transplantAuthority: formData.transplantAuthority?.name || "",
-        insuranceDocuments: formData.insuranceDocuments?.name || "",
-      };
+      let effectiveUserId: string | undefined;
 
-      // Ensure a user account exists for this hospital (onboarding can create one)
-      let effectiveUserId: string | undefined = undefined;
-      try {
-        const accountResp = await fetch("/api/auth/create-account", {
-          method: "POST",
+      if (session?.user?.id) {
+        // OAuth user — use session ID
+        effectiveUserId = session.user.id as string;
+        await fetch("/api/profile", {
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: formData.email,
-            name: formData.hospitalName,
-            phone: formData.phoneNumber,
-            role: "hospital",
-          }),
-        });
+          body: JSON.stringify({ updateRole: "hospital" }),
+        }).catch(() => {});
+      } else {
+        // Create account
+        try {
+          const accountResp = await fetch("/api/auth/create-account", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: formData.email,
+              name: formData.hospitalName,
+              phone: formData.phoneNumber,
+              role: "hospital",
+            }),
+          });
 
-        if (accountResp.ok) {
-          const accountData = await accountResp.json();
-          effectiveUserId = accountData.userId;
-        } else {
-          const err = await accountResp.json();
-          console.warn("Create-account failed:", err);
+          if (accountResp.ok) {
+            const accountData = await accountResp.json();
+            effectiveUserId = accountData.userId;
+          }
+        } catch (e) {
+          console.error("create-account request failed", e);
         }
-      } catch (e) {
-        console.error("create-account request failed", e);
       }
 
       const response = await fetch("/api/profile", {
@@ -152,7 +153,7 @@ export default function HospitalOnboarding() {
           state: formData.state,
           zipCode: formData.zipCode,
           phoneNumber: formData.phoneNumber,
-          email: formData.email,
+          email: session?.user?.email || formData.email,
           website: formData.website,
           accreditation: formData.accreditation,
           transplantDepartmentHead: formData.transplantDepartmentHead,
@@ -168,32 +169,23 @@ export default function HospitalOnboarding() {
 
       if (!response.ok) throw new Error("Failed to submit profile");
 
-      // Attempt to sign in the newly created onboarding account so session matches profile
-      try {
-        await signIn("credentials", {
-          email: formData.email.trim().toLowerCase(),
-          password: "onboarding-account",
-          redirect: false,
-        });
-      } catch (e) {
-        console.warn('Auto sign-in after hospital onboarding failed', e);
-      }
+      toast.success("Hospital profile submitted!");
 
-      // Send OTP to the provided email for immediate verification step
+      // Try to send OTP (non-blocking — don't show errors to user)
       try {
-        const sendResp = await fetch('/api/hospital/send-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: formData.email, userId: effectiveUserId }) });
-        const sendJson = await sendResp.json().catch(() => ({}));
-        if (!sendResp.ok) {
-          console.error('send-otp failed:', sendJson);
-          toast.error(sendJson?.error || 'Failed to send OTP. Please request verification from dashboard.');
-        } else {
+        const sendResp = await fetch('/api/hospital/send-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: session?.user?.email || formData.email, userId: effectiveUserId }) });
+        if (sendResp.ok) {
           setOtpSent(true);
-          toast.success('OTP sent to the hospital email. Please enter it to verify your account.');
+          toast.success('OTP sent to verify your email.');
+          setLoading(false);
+          return; // Stay on page for OTP entry
         }
       } catch (e) {
-        console.error('Failed to send OTP:', e);
-        toast.error('Profile submitted but failed to send OTP. Please request verification from dashboard.');
+        // OTP failed — just redirect
       }
+
+      // Redirect to pending page
+      router.push("/hospital/pending");
     } catch (error) {
       console.error("Submission error:", error);
       toast.error("Failed to submit profile. Please try again.");
@@ -208,12 +200,10 @@ export default function HospitalOnboarding() {
       const res = await fetch('/api/hospital/verify-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: formData.email, otp }) });
       const payload = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast.success('Email verified. Redirecting to dashboard...');
-        // close OTP modal and clear OTP
+        toast.success('Email verified! Your profile is pending admin approval.');
         setOtp("");
         setOtpSent(false);
-        // redirect immediately — backend updates verification synchronously in /api/hospital/verify-otp
-        try { router.push('/dashboard/hospital'); } catch (e) { window.location.href = '/dashboard/hospital'; }
+        router.push('/hospital/pending');
       } else {
         console.error('verify-otp failed:', payload);
         toast.error(payload?.error || 'Invalid or expired OTP');
@@ -225,7 +215,7 @@ export default function HospitalOnboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-12 px-4">
+    <div className="min-h-screen bg-[#F8FAFC] py-12 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Progress Steps */}
         <div className="mb-8">

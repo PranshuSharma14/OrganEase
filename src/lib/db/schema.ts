@@ -14,7 +14,7 @@ import { relations } from "drizzle-orm";
 // ENUMS
 // ============================================
 
-export const userRoleEnum = pgEnum("user_role", ["donor", "recipient", "hospital"]);
+export const userRoleEnum = pgEnum("user_role", ["donor", "recipient", "hospital", "admin", "authority"]);
 export const bloodGroupEnum = pgEnum("blood_group", ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]);
 export const organTypeEnum = pgEnum("organ_type", [
   "kidney",
@@ -40,6 +40,7 @@ export const requestStatusEnum = pgEnum("request_status", [
 ]);
 export const donorAvailabilityEnum = pgEnum("donor_availability", ["active", "paused", "unavailable"]);
 export const priorityEnum = pgEnum("priority", ["normal", "high", "emergency"]);
+export const hospitalVerificationEnum = pgEnum("hospital_verification_status", ["pending", "verified", "rejected"]);
 
 // ============================================
 // USERS TABLE (Core authentication)
@@ -108,6 +109,9 @@ export const donorProfiles = pgTable("donor_profiles", {
   organs: jsonb("organs").notNull(), // Array of organ types
   availability: donorAvailabilityEnum("availability").notNull().default("active"),
   emergencyAvailable: boolean("emergency_available").default(false),
+  
+  // Hospital Assignment — donor is linked to exactly ONE hospital
+  registeredHospitalId: uuid("registered_hospital_id").references(() => hospitalProfiles.id),
   
   // Documents
   aadhaarUrl: text("aadhaar_url"),
@@ -197,11 +201,13 @@ export const hospitalProfiles = pgTable("hospital_profiles", {
   transplantCapacity: integer("transplant_capacity"),
   specializations: text("specializations").array(),
   
-  // Unique code shared with recipients during their signup
+  // Unique code shared with recipients/donors during their signup
   hospitalCode: text("hospital_code").unique(),
   
-  // Verification
+  // Verification — admin must verify the hospital before it can operate
   verified: boolean("verified").default(false),
+  verificationStatus: hospitalVerificationEnum("verification_status").default("pending"),
+  adminNotes: text("admin_notes"),
   verificationDocUrl: text("verification_doc_url"),
   licenseDocUrl: text("license_doc_url"),
   accreditationDocUrl: text("accreditation_doc_url"),
@@ -221,12 +227,12 @@ export const matches = pgTable("matches", {
   
   // Match Details
   organType: organTypeEnum("organ_type").notNull(),
-  matchScore: integer("match_score"), // Compatibility score
+  matchScore: integer("match_score"), // Compatibility score (0-100)
   
   // Status
   status: requestStatusEnum("status").default("matched"),
   
-  // Hospital Approval
+  // Hospital Approval — the hospital that owns both donor and recipient
   hospitalId: uuid("hospital_id").references(() => hospitalProfiles.id),
   approvedByHospital: boolean("approved_by_hospital").default(false),
   approvedAt: timestamp("approved_at"),
@@ -247,12 +253,38 @@ export const matches = pgTable("matches", {
   procedureScheduledDate: timestamp("procedure_scheduled_date"),
   completedAt: timestamp("completed_at"),
   
+  // AI Risk Analysis
+  aiRiskScore: integer("ai_risk_score"),
+  aiRiskFlags: jsonb("ai_risk_flags"),
+  aiMatchExplanation: text("ai_match_explanation"),
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // ============================================
-// SECURE CHAT
+// HOSPITAL MESSAGES (donor/recipient ↔ hospital only)
+// ============================================
+
+export const hospitalMessages = pgTable("hospital_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  hospitalId: uuid("hospital_id").references(() => hospitalProfiles.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  
+  senderId: uuid("sender_id").references(() => users.id).notNull(),
+  senderRole: userRoleEnum("sender_role").notNull(),
+  
+  message: text("message").notNull(),
+  read: boolean("read").default(false),
+  
+  // Optional reference to a match
+  matchId: uuid("match_id").references(() => matches.id),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ============================================
+// CHAT MESSAGES (DEPRECATED — kept for migration, will be removed)
 // ============================================
 
 export const chatMessages = pgTable("chat_messages", {
@@ -333,6 +365,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [hospitalProfiles.userId],
   }),
   notifications: many(notifications),
+  sentMessages: many(hospitalMessages),
 }));
 
 export const donorProfilesRelations = relations(donorProfiles, ({ one, many }) => ({
@@ -341,9 +374,15 @@ export const donorProfilesRelations = relations(donorProfiles, ({ one, many }) =
     references: [users.id],
   }),
   matches: many(matches),
+  registeredHospital: one(hospitalProfiles, {
+    fields: [donorProfiles.registeredHospitalId],
+    references: [hospitalProfiles.id],
+    relationName: "donorRegisteredHospital",
+  }),
   verifiedBy: one(hospitalProfiles, {
     fields: [donorProfiles.verifiedByHospitalId],
     references: [hospitalProfiles.id],
+    relationName: "donorVerifiedByHospital",
   }),
 }));
 
@@ -356,10 +395,12 @@ export const recipientProfilesRelations = relations(recipientProfiles, ({ one, m
   registeredHospital: one(hospitalProfiles, {
     fields: [recipientProfiles.registeredHospitalId],
     references: [hospitalProfiles.id],
+    relationName: "recipientRegisteredHospital",
   }),
   verifiedBy: one(hospitalProfiles, {
     fields: [recipientProfiles.verifiedByHospitalId],
     references: [hospitalProfiles.id],
+    relationName: "recipientVerifiedByHospital",
   }),
 }));
 
@@ -368,9 +409,12 @@ export const hospitalProfilesRelations = relations(hospitalProfiles, ({ one, man
     fields: [hospitalProfiles.userId],
     references: [users.id],
   }),
-  verifiedDonors: many(donorProfiles),
-  verifiedRecipients: many(recipientProfiles),
+  registeredDonors: many(donorProfiles, { relationName: "donorRegisteredHospital" }),
+  registeredRecipients: many(recipientProfiles, { relationName: "recipientRegisteredHospital" }),
+  verifiedDonors: many(donorProfiles, { relationName: "donorVerifiedByHospital" }),
+  verifiedRecipients: many(recipientProfiles, { relationName: "recipientVerifiedByHospital" }),
   approvedMatches: many(matches),
+  messages: many(hospitalMessages),
 }));
 
 export const matchesRelations = relations(matches, ({ one, many }) => ({
@@ -386,7 +430,26 @@ export const matchesRelations = relations(matches, ({ one, many }) => ({
     fields: [matches.hospitalId],
     references: [hospitalProfiles.id],
   }),
-  messages: many(chatMessages),
+  messages: many(hospitalMessages),
+}));
+
+export const hospitalMessagesRelations = relations(hospitalMessages, ({ one }) => ({
+  hospital: one(hospitalProfiles, {
+    fields: [hospitalMessages.hospitalId],
+    references: [hospitalProfiles.id],
+  }),
+  user: one(users, {
+    fields: [hospitalMessages.userId],
+    references: [users.id],
+  }),
+  sender: one(users, {
+    fields: [hospitalMessages.senderId],
+    references: [users.id],
+  }),
+  match: one(matches, {
+    fields: [hospitalMessages.matchId],
+    references: [matches.id],
+  }),
 }));
 
 export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
