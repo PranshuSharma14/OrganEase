@@ -4,10 +4,11 @@ import { useSearchParams } from "next/navigation";
 import { ChatComponent } from "@/components/ChatComponent";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Suspense } from "react";
 
-export default function ChatPage() {
+function ChatPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const matchId = searchParams.get("matchId") || "";
@@ -51,5 +52,17 @@ export default function ChatPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50 flex items-center justify-center p-4">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    }>
+      <ChatPageContent />
+    </Suspense>
   );
 }
